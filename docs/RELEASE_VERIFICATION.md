@@ -70,6 +70,7 @@ this branch — see "Verified locally" below.
 | Settings persistence | Verified | `settings.json` schema v1 present and valid |
 | Clean boot / logging | Verified | Multiple clean boot cycles in `helios.log`, no panics |
 | Window-state save + restore | Verified | Graceful quit writes `.window-state.json` with real geometry; relaunch boots clean and the plugin restores it |
+| Second-instance focus (T10, deferred) | Not confirmed | Launching a second instance should focus the existing window rather than spawn a new one; single-instance handler is wired in `lib.rs`, but the focus-on-relaunch behavior needs eyeballing on a real desktop session |
 | Tray icon present | Wired, not visually confirmed | `tray.rs` `create()` runs in `setup`; live geometry/tray scraping via System Events timed out in this automation context (accessibility permission) — eyeball on a real desktop session to be 100% |
 | Theme toggle applied live | Not confirmed | Requires clicking the UI on a real desktop; `theme` field persists correctly in `settings.json` |
 
