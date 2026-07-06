@@ -169,10 +169,14 @@ export class RootErrorBoundary extends Component<
     return { hasError: true, error }
   }
 
-  componentDidCatch(caught: Error, info: ErrorInfo) {
+  // React passes whatever was thrown, not necessarily an `Error` — widen the
+  // param and normalise so string/object throws log their real content
+  // instead of "undefined".
+  componentDidCatch(caught: unknown, info: ErrorInfo) {
     if (isTauri()) {
+      const { message } = toCrashInfo(caught)
       void logError(
-        `componentDidCatch: ${caught.message}\n${info.componentStack ?? ''}`,
+        `componentDidCatch: ${message}\n${info.componentStack ?? ''}`,
       )
     }
   }

@@ -1,8 +1,15 @@
+import { error as logError } from '@tauri-apps/plugin-log'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { version as appVersion } from '../../package.json'
 import { RootErrorBoundary } from './error-boundary'
+
+// `componentDidCatch` forwards to plugin-log; mock the module so the guarded
+// path can be asserted without a real Tauri runtime behind it.
+vi.mock('@tauri-apps/plugin-log', () => ({
+  error: vi.fn().mockResolvedValue(undefined),
+}))
 
 // React logs the caught error to console.error (twice, in dev) — expected
 // and noisy, so silence it and restore afterwards to keep test output clean.
@@ -101,6 +108,37 @@ it('reloads the page when running outside Tauri and Restart is clicked', async (
   await user.click(screen.getByRole('button', { name: /restart app/i }))
 
   expect(reload).toHaveBeenCalled()
+})
+
+it('logs the thrown value itself when a child throws a non-Error', () => {
+  // React passes componentDidCatch whatever was thrown, not only `Error`s —
+  // a string throw must still reach the log with its actual content.
+  function StringBomb(): never {
+    throw 'plain string failure'
+  }
+  // The forwarding is guarded by `isTauri()`; pretend we're in the webview.
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    configurable: true,
+    value: {},
+  })
+
+  try {
+    render(
+      <RootErrorBoundary>
+        <StringBomb />
+      </RootErrorBoundary>,
+    )
+  } finally {
+    delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+  }
+
+  expect(logError).toHaveBeenCalledWith(
+    expect.stringContaining('plain string failure'),
+  )
+  expect(logError).not.toHaveBeenCalledWith(
+    expect.stringContaining('undefined'),
+  )
+  expect(screen.getAllByText(/plain string failure/i).length).toBeGreaterThan(0)
 })
 
 it('renders children normally when nothing throws', () => {
