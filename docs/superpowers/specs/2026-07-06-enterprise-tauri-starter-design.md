@@ -15,6 +15,8 @@ Turn the fresh `create-tauri-app` scaffold into an enterprise-grade Tauri 2 star
 | Frontend | React 19 + Vite + TypeScript, pnpm |
 | Routing | React Router v7, data mode, `createHashRouter` |
 | Styling | Tailwind v4 + shadcn/ui (components vendored into repo) |
+| UI process | All UI work via the `frontend-design:frontend-design` skill |
+| Typography | Bundled Google Fonts via @fontsource (Space Grotesk / Manrope / JetBrains Mono); never system defaults or CDN |
 | Data/state | TanStack Query (wraps all IPC) + Zustand (client state) |
 | Lint/format (JS/TS) | Biome v2 (replaces ESLint + Prettier) |
 | Rust quality | rustfmt.toml, Clippy via `Cargo.toml [lints]`, cargo-deny |
@@ -117,6 +119,29 @@ src/
 
 Feature folders are self-contained with public `index.ts`; features never import each other (shared code moves to `shared/`). React Router v7 data mode with `createHashRouter` — hash history survives hard reloads under Tauri's custom protocol and works in the browser dev server; routes centralized in `src/app/routes.tsx`, demoing a nested layout + at least two pages.
 
+**Modularity contract.** A feature is the unit of extension: adding one means creating `src/features/<name>/` (+ optionally `src-tauri/src/commands/<name>.rs`) and registering a route — nothing else in the app changes. Each feature owns its components, hooks, queries, and (if needed) Zustand slice behind its `index.ts`; route registration in `routes.tsx` is the single integration point. The `adding-a-page` and `adding-a-tauri-command` skills encode this contract so agents extend the system the same way humans do.
+
+### UI design system & typography
+
+- **All UI implementation goes through the `frontend-design:frontend-design` skill** — this is recorded in CLAUDE.md and the frontend rules file so agents (including future sessions) apply it to every UI task, and applies to the initial app-shell/pages build in this project.
+- **No default/system font stacks.** Fonts are Google Fonts, **self-hosted via `@fontsource` packages** (bundled into the app — a desktop app must not fetch fonts from a CDN at runtime; this also keeps CSP closed and the app fully offline-capable). Default pairing: **Space Grotesk** (headings/display), **Manrope** (UI/body), **JetBrains Mono** (code/tabular data), wired as Tailwind v4 theme tokens. The frontend-design pass may refine the pairing, but the "bundled @fontsource, never system-default, never CDN" rule is fixed.
+- Design tokens (font families, radii, spacing, semantic colors for light/dark) live in the Tailwind v4 `@theme` block in `styles.css` — one place to rebrand a stamped-out app; shadcn/ui components consume the same tokens.
+
+### State & persistence model
+
+Three explicitly delineated layers — the rules files teach agents which one to reach for:
+
+1. **IPC/backend state → TanStack Query.** All data that lives in Rust (settings, app info, update status) flows through Query with a query-key factory in `lib/ipc`; mutations invalidate keys. No copying IPC results into stores.
+2. **Client UI state → Zustand.** Ephemeral by default; slices that must survive restarts use Zustand's `persist` middleware backed by a custom storage adapter over `tauri-plugin-store` (debounced, atomic writes to the OS app-data dir — no localStorage, which webviews can evict).
+3. **Durable app data → `tauri-plugin-store`** JSON files owned by Rust. The settings file carries a `schemaVersion` field and a migration hook runs on load, so stamped-out apps can evolve their settings shape safely. Window geometry stays with the window-state plugin.
+
+### Crash handling & resilience (out of the box)
+
+- **Frontend:** a top-level React error boundary (plus per-route boundaries via React Router's `errorElement`) renders a branded fallback with the error, a "copy diagnostics" button, and Restart/Reload actions (restart via the process plugin). Unhandled promise rejections and `window.onerror` are forwarded to the Rust log file via the log plugin bridge.
+- **Rust:** a `std::panic::set_hook` in `run()` writes the panic + backtrace to the log file before default behavior; commands never panic (enforced by convention + review), so a panic is always a bug with a trace. Logs rotate (log plugin `RotationStrategy` + max file size).
+- **Recovery:** persisted state writes are atomic and debounced, so a crash never corrupts settings; on next launch the app starts from last-good state. A "Reset app data" escape hatch lives in Settings.
+- **Sentry (`sentry-tauri`) stays an opt-in recipe** (requires an account/DSN), but the wiring points (panic hook, error boundary, log bridge) are exactly where it plugs in, so enabling it later is a small, documented diff.
+
 ### Plugins baseline
 
 single-instance (registered first), window-state, updater, process, opener, dialog, fs (tight scope), log (file in OS log dir + webview console bridge via `attachConsole`), store, os. System tray via core API. Theme: follow OS by default, user override persisted in store, synced to the webview.
@@ -138,7 +163,7 @@ single-instance (registered first), window-state, updater, process, opener, dial
 - **`CLAUDE.md`** (root, <200 lines): one-line description; stack + versions; exact commands (`pnpm dev`, `pnpm tauri dev`, `pnpm check:all`, `pnpm test`, `cargo test`, etc.); architecture map pointing at key files; top gotchas (register commands in the specta builder, new command needs a capability permission or it fails at runtime, bindings.ts is generated — never hand-edit, version lives only in package.json, lib.rs vs main.rs).
 - **`.claude/rules/`** (path-scoped):
   - `rust-backend.md` (`paths: ["src-tauri/**/*.rs"]`) — AppResult pattern, no panics in commands, async by default, event emission for long ops.
-  - `frontend.md` (`paths: ["src/**/*.{ts,tsx}"]`) — feature-folder rules, bindings-only IPC, Query for server-ish state, shadcn conventions.
+  - `frontend.md` (`paths: ["src/**/*.{ts,tsx}"]`) — feature-folder rules, bindings-only IPC, the three-layer state model (Query / Zustand / store), shadcn + design-token conventions, and the mandate to use the `frontend-design:frontend-design` skill for UI work.
   - `capabilities.md` (`paths: ["src-tauri/capabilities/**", "src-tauri/tauri.conf.json"]`) — least privilege, CSP editing guidance.
 - **`.claude/skills/`** (procedures):
   - `adding-a-tauri-command` — end-to-end checklist: Rust command → specta registration → capability permission → regenerate bindings → frontend hook via Query → Rust + frontend tests. Failure modes called out (missing registration, closed capability, stale bindings).
@@ -151,7 +176,7 @@ single-instance (registered first), window-state, updater, process, opener, dial
 
 ## 8. Deliberately excluded from v1 (documented as recipes in `docs/recipes/`)
 
-i18n (react-i18next), Sentry crash reporting (`sentry-tauri`), WebDriver e2e, isolation pattern, mobile targets, deep-link + autostart plugins. Each recipe is a short doc so nothing is a dead end.
+i18n (react-i18next), Sentry *remote* crash reporting (`sentry-tauri` — local crash handling is built in, see §5), WebDriver e2e, isolation pattern, mobile targets, deep-link + autostart plugins. Each recipe is a short doc so nothing is a dead end.
 
 ## 9. Bootstrap sequence (implementation-phase outline)
 
