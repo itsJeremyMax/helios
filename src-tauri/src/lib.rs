@@ -12,6 +12,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
         commands::app::greet,
         commands::app::app_info,
+        commands::settings::get_settings,
+        commands::settings::update_settings,
+        commands::settings::reset_app_data,
     ])
 }
 

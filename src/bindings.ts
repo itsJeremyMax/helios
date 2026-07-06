@@ -6,6 +6,9 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 export const commands = {
 	greet: (name: string) => __TAURI_INVOKE<string>("greet", { name }),
 	appInfo: () => typedError<AppInfo, ErrorPayload>(__TAURI_INVOKE("app_info")),
+	getSettings: () => typedError<Settings, ErrorPayload>(__TAURI_INVOKE("get_settings")),
+	updateSettings: (patch: SettingsPatch) => typedError<Settings, ErrorPayload>(__TAURI_INVOKE("update_settings", { patch })),
+	resetAppData: () => typedError<Settings, ErrorPayload>(__TAURI_INVOKE("reset_app_data")),
 };
 
 /* Types */
@@ -24,6 +27,23 @@ export type ErrorPayload = {
 	kind: string,
 	message: string,
 };
+
+export type Settings = {
+	schemaVersion: number,
+	theme: Theme,
+	checkUpdatesOnLaunch: boolean,
+};
+
+/**
+ *  Partial update payload: only present fields are applied, everything else is
+ *  left untouched.
+ */
+export type SettingsPatch = {
+	theme: Theme | null,
+	checkUpdatesOnLaunch: boolean | null,
+};
+
+export type Theme = "system" | "light" | "dark";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
