@@ -1,5 +1,7 @@
 /// <reference types="vitest/config" />
 // @ts-expect-error type error without @types/node package
+import path from 'node:path'
+// @ts-expect-error type error without @types/node package
 import process from 'node:process'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -10,6 +12,12 @@ const host = process.env.TAURI_DEV_HOST
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      // @ts-expect-error type error without @types/node package
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

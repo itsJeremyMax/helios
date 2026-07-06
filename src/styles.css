@@ -1,4 +1,11 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* shadcn/ui components ship `dark:` utility variants (see src/shared/ui).
+   Our theme toggle sets a `.dark` class on <html>, not OS preference, so
+   repoint Tailwind's `dark:` variant at that class instead of the default
+   `prefers-color-scheme` media query — one dark-mode mechanism, not two. */
+@custom-variant dark (&:is(.dark *));
 
 @theme {
   --font-sans: "Manrope Variable", ui-sans-serif, system-ui, sans-serif;
@@ -12,9 +19,39 @@
   --color-muted: oklch(95% 0.008 80);
   --color-muted-foreground: oklch(48% 0.02 60);
   --color-border: oklch(89% 0.012 80);
-  --color-primary: oklch(62% 0.16 55);
+  --color-primary: oklch(55% 0.16 55);
   --color-primary-foreground: oklch(99% 0.004 90);
   --color-destructive: oklch(58% 0.2 27);
+
+  /* shadcn/ui expects a few more semantic slots (card, popover, secondary,
+     accent, input, ring) than Task 6 defined. Rather than invent a second
+     palette, alias every one of them onto the tokens above — this is the
+     only place their values live. */
+  --color-card: var(--color-background);
+  --color-card-foreground: var(--color-foreground);
+  --color-popover: var(--color-background);
+  --color-popover-foreground: var(--color-foreground);
+  --color-secondary: var(--color-muted);
+  --color-secondary-foreground: var(--color-foreground);
+  --color-accent: var(--color-muted);
+  --color-accent-foreground: var(--color-foreground);
+  --color-input: var(--color-border);
+  --color-ring: var(--color-primary);
+}
+
+:root {
+  --radius: 0.625rem;
+
+  /* A handful of vendored components (sonner's inline style vars, the
+     button secondary hover color-mix) read raw custom properties instead
+     of Tailwind's `--color-*` utilities. Proxy the ones that are actually
+     referenced that way — still one source of truth, just re-exposed
+     under the bare names those components expect. */
+  --foreground: var(--color-foreground);
+  --secondary: var(--color-secondary);
+  --popover: var(--color-popover);
+  --popover-foreground: var(--color-popover-foreground);
+  --border: var(--color-border);
 }
 
 @layer base {
