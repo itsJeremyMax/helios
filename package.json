@@ -19,7 +19,8 @@
     "fmt:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "check:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "check:all": "pnpm typecheck && pnpm lint && pnpm test && cargo fmt --manifest-path src-tauri/Cargo.toml --check && pnpm check:rust && pnpm test:rust"
+    "check:security": "export PATH=\"$HOME/.cargo/bin:$PATH\"; if command -v cargo-deny >/dev/null 2>&1 && command -v typos >/dev/null 2>&1; then cargo deny --manifest-path src-tauri/Cargo.toml check bans licenses sources && typos; else echo 'cargo-deny/typos not installed — skipping local security gate. Run: cargo install cargo-deny typos-cli --locked (CI enforces these)'; fi",
+    "check:all": "pnpm typecheck && pnpm lint && pnpm test && cargo fmt --manifest-path src-tauri/Cargo.toml --check && pnpm check:rust && pnpm test:rust && pnpm check:security"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
