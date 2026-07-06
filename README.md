@@ -59,6 +59,7 @@ window.
 | `pnpm dev` | Vite dev server only (no Tauri window) |
 | `pnpm tauri dev` | Full app in a native window with hot reload |
 | `pnpm build` | Type-check and build the frontend bundle |
+| `pnpm preview` | Serve the built frontend bundle for local preview |
 | `pnpm tauri build` | Produce native installers for the current platform |
 | `pnpm lint` / `pnpm lint:fix` | Biome lint (check / auto-fix) |
 | `pnpm format` | Biome format, written in place |
