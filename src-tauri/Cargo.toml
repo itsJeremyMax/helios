@@ -1,8 +1,8 @@
 [package]
 name = "helios"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Enterprise-grade Tauri desktop application"
+authors = ["Jeremy Max"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 

@@ -9,10 +9,11 @@
  *   node scripts/setup.mjs --name acme-notes \
  *     [--display "Acme Notes"] \
  *     [--identifier com.example.acme-notes] \
- *     [--repo your-org/acme-notes]
+ *     [--repo your-org/acme-notes] \
+ *     [--author "Acme Inc"]
  *
  * Defaults: display is Title Case of --name, identifier is
- * com.jeremymax.<name>, repo is itsJeremyMax/<name>.
+ * com.jeremymax.<name>, repo is itsJeremyMax/<name>, author is the repo owner.
  */
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
@@ -39,7 +40,7 @@ function parseArgs(argv) {
 function fail(message) {
   console.error(`error: ${message}`)
   console.error(
-    'usage: node scripts/setup.mjs --name <kebab-name> [--display <Display Name>] [--identifier <com.example.app>] [--repo <owner/repo>]',
+    'usage: node scripts/setup.mjs --name <kebab-name> [--display <Display Name>] [--identifier <com.example.app>] [--repo <owner/repo>] [--author <Author Name>]',
   )
   process.exit(1)
 }
@@ -63,6 +64,8 @@ if (!/^[a-zA-Z][a-zA-Z0-9-]*(\.[a-zA-Z0-9-]+)+$/.test(identifier))
 const repo = args.repo ?? `itsJeremyMax/${name}`
 if (!/^[\w.-]+\/[\w.-]+$/.test(repo))
   fail(`--repo must be owner/repo (got "${repo}")`)
+const author = args.author ?? repo.split('/')[0]
+if (author.includes('"')) fail('--author must not contain double quotes')
 
 // ------------------------------------------------------------------- guard
 const pkgPath = join(ROOT, 'package.json')
@@ -137,6 +140,21 @@ for (const { abs, rel } of walk(ROOT)) {
     changed.push([rel, hits])
     totalHits += hits
   }
+}
+
+// --------------------------------------------- Cargo.toml identity fields
+// The crate description and authors carry no template token, so the generic
+// walk above leaves them untouched. Rewrite them explicitly from the
+// stamp-out identity so the packaged app's metadata matches the new app.
+const cargoPath = join(ROOT, 'src-tauri', 'Cargo.toml')
+const cargoBefore = readFileSync(cargoPath, 'utf8')
+const cargoAfter = cargoBefore
+  .replace(/^description = ".*"$/m, `description = "${display}"`)
+  .replace(/^authors = \[.*\]$/m, `authors = ["${author}"]`)
+if (cargoAfter !== cargoBefore) {
+  writeFileSync(cargoPath, cargoAfter)
+  const rel = relative(ROOT, cargoPath).replaceAll('\\', '/')
+  if (!changed.some(([r]) => r === rel)) changed.push([rel, 0])
 }
 
 // ----------------------------------------------------------------- summary
