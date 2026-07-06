@@ -30,9 +30,9 @@ jobs:
           - { platform: windows-latest, args: '', rust_targets: '' }
     runs-on: ${{ matrix.platform }}
     steps:
+      # No ref: draft releases use lazy tag creation (tag doesn't exist until
+      # publish); the triggering commit is the release target (target_commitish).
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
@@ -51,7 +51,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Conditional OS signing — steps activate only when secrets exist:
+          # Conditional OS signing — empty env vars = signing skipped (unsigned build):
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -60,6 +60,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ needs.release-please.outputs.tag_name }}
+          releaseDraft: true
           args: ${{ matrix.args }}
 
   publish-release:
@@ -69,7 +70,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
       - name: publish the draft release (flips latest.json live atomically)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
