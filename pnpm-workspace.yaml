@@ -1,0 +1,6 @@
+packages:
+  - '.'
+allowBuilds:
+  lefthook: true
+onlyBuiltDependencies:
+  - lefthook
