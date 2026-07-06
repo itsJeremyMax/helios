@@ -74,6 +74,11 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
             tray::create(app)?;
+            // The updater plugin is desktop-only; mobile ships through the app
+            // stores and has no in-app update path.
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             Ok(())
         })
         .run(tauri::generate_context!())

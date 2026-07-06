@@ -31,6 +31,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -38,5 +39,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc0MTUwQUVGMEE5QkNEMTcKUldRWHpac0s3d29WZEZmYWQ1ZjJ0bkpsRHNxdDBUMlVaSVAzRWZsTjE4clFzN0VaNlFPeCtqalEK",
+      "endpoints": [
+        "https://github.com/itsJeremyMax/helios/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

@@ -2,6 +2,7 @@ import { Check, ChevronsUpDown, Monitor, Moon, Sun } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useState } from 'react'
 import type { Theme } from '@/bindings'
+import { UpdateCard } from '@/features/updater'
 import { Button } from '@/shared/ui/button'
 import {
   Card,
@@ -152,6 +153,8 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <UpdateCard />
 
       <Card className="ring-destructive/20">
         <CardHeader>

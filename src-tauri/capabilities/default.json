@@ -11,6 +11,7 @@
     "dialog:default",
     "os:default",
     "process:default",
-    "window-state:default"
+    "window-state:default",
+    "updater:default"
   ]
 }
