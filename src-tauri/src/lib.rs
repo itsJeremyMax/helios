@@ -23,6 +23,15 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
 // no meaningful way to recover, so we fail fast with a clear message.
 #[allow(clippy::expect_used)]
 pub fn run() {
+    // Installed before anything else so a panic anywhere during startup or
+    // while the app is running — including on background threads Tauri
+    // spawns internally — lands in the log file with a full backtrace
+    // instead of only ever reaching stderr.
+    std::panic::set_hook(Box::new(|info| {
+        let backtrace = std::backtrace::Backtrace::force_capture();
+        log::error!("panic: {info}\n{backtrace}");
+    }));
+
     let builder = specta_builder();
 
     #[cfg(debug_assertions)]
