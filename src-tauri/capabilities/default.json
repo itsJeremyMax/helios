@@ -1,7 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Least-privilege capability for the main window. Audit: every permission here must map to a feature; remove any that lose their consumer.",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "log:default",
+    "store:default",
+    "dialog:default",
+    "os:default",
+    "process:default",
+    "window-state:default"
+  ]
 }
