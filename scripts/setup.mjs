@@ -165,3 +165,16 @@ Next steps:
   6. Apply branch protection to your new repo:
        gh api repos/${repo}/rulesets -X POST --input .github/rulesets/main.json
 `)
+
+const defaulted = []
+if (!args.repo) defaulted.push(`--repo defaulted to "${repo}"`)
+if (!args.identifier)
+  defaulted.push(`--identifier defaulted to "${identifier}"`)
+if (defaulted.length > 0) {
+  console.log(`WARNING: ${defaulted.join('; ')}.`)
+  console.log(
+    '  These point at itsJeremyMax / com.jeremymax — if this is not your GitHub',
+    'account or bundle-id namespace, re-clone the template and re-run with',
+    'explicit --repo and --identifier before shipping.',
+  )
+}
