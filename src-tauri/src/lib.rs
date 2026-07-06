@@ -2,6 +2,7 @@ use tauri::Manager;
 
 mod commands;
 mod error;
+mod tray;
 
 pub use error::{AppError, AppResult};
 
@@ -72,6 +73,7 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            tray::create(app)?;
             Ok(())
         })
         .run(tauri::generate_context!())
