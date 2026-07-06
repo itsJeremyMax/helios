@@ -1,0 +1,2 @@
+[files]
+extend-exclude = ["pnpm-lock.yaml", "src-tauri/Cargo.lock", "*.svg", "src/bindings.ts", "src-tauri/gen"]

@@ -5,6 +5,9 @@ fn greet(name: &str) -> String {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+// Setup-time panic is intentional: if the Tauri app fails to start, there is
+// no meaningful way to recover, so we fail fast with a clear message.
+#[allow(clippy::expect_used)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
