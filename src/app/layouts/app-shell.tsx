@@ -1,6 +1,9 @@
+import { useQuery } from '@tanstack/react-query'
 import { Home, Settings, Sun } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { NavLink, Outlet } from 'react-router'
+import { commands, queryKeys, unwrapResult } from '@/lib/ipc'
+import { isTauri } from '@/lib/tauri'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS: Array<{
@@ -14,6 +17,14 @@ const NAV_ITEMS: Array<{
 ]
 
 export function AppShell() {
+  // Live app version from the backend. The query stays disabled outside Tauri
+  // (dev browser / jsdom), so the shell renders without a version there.
+  const { data: appInfo } = useQuery({
+    queryKey: queryKeys.appInfo,
+    queryFn: async () => unwrapResult(await commands.appInfo()),
+    enabled: isTauri(),
+  })
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-muted/40">
@@ -45,7 +56,9 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="px-4 py-3 text-xs text-muted-foreground">v0.1.0</div>
+        <div className="px-4 py-3 text-xs text-muted-foreground">
+          {appInfo?.version ? `v${appInfo.version}` : null}
+        </div>
       </aside>
 
       <main className="flex-1 overflow-y-auto">
