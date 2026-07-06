@@ -1,5 +1,6 @@
+import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
-import { greet } from '@/lib/ipc'
+import { commands } from '@/lib/ipc'
 import { Button } from '@/shared/ui/button'
 import {
   Card,
@@ -13,11 +14,13 @@ import { Label } from '@/shared/ui/label'
 
 export function HomePage() {
   const [name, setName] = useState('')
-  const [reply, setReply] = useState('')
+  const greeting = useMutation({
+    mutationFn: (value: string) => commands.greet(value),
+  })
 
-  async function handleSubmit(event: React.FormEvent) {
+  function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    setReply(await greet(name))
+    greeting.mutate(name)
   }
 
   return (
@@ -53,9 +56,9 @@ export function HomePage() {
               Send greeting
             </Button>
           </form>
-          {reply && (
+          {greeting.data && (
             <p className="mt-4 font-mono text-sm text-muted-foreground">
-              {reply}
+              {greeting.data}
             </p>
           )}
         </CardContent>
