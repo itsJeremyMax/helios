@@ -23,7 +23,7 @@ function renderApp() {
 it('renders home page at /', async () => {
   renderApp()
   expect(
-    await screen.findByRole('heading', { name: /helios/i }),
+    await screen.findByRole('heading', { name: 'Helios' }),
   ).toBeInTheDocument()
 })
 

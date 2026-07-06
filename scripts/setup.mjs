@@ -1,0 +1,167 @@
+#!/usr/bin/env node
+/**
+ * Template stamp-out script.
+ *
+ * Rewrites every occurrence of the template's identity tokens across the repo
+ * so a copy of this template becomes *your* app. Node-only, no dependencies.
+ *
+ * Usage:
+ *   node scripts/setup.mjs --name acme-notes \
+ *     [--display "Acme Notes"] \
+ *     [--identifier com.example.acme-notes] \
+ *     [--repo your-org/acme-notes]
+ *
+ * Defaults: display is Title Case of --name, identifier is
+ * com.jeremymax.<name>, repo is itsJeremyMax/<name>.
+ */
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
+import process from 'node:process'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
+
+// ---------------------------------------------------------------- arguments
+function parseArgs(argv) {
+  const args = {}
+  for (let i = 0; i < argv.length; i++) {
+    const flag = argv[i]
+    if (!flag.startsWith('--')) fail(`Unexpected argument: ${flag}`)
+    const value = argv[i + 1]
+    if (value === undefined || value.startsWith('--'))
+      fail(`Missing value for ${flag}`)
+    args[flag.slice(2)] = value
+    i++
+  }
+  return args
+}
+
+function fail(message) {
+  console.error(`error: ${message}`)
+  console.error(
+    'usage: node scripts/setup.mjs --name <kebab-name> [--display <Display Name>] [--identifier <com.example.app>] [--repo <owner/repo>]',
+  )
+  process.exit(1)
+}
+
+const args = parseArgs(process.argv.slice(2))
+const name = args.name
+if (!name) fail('--name is required')
+if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(name))
+  fail(`--name must be kebab-case (got "${name}")`)
+
+const snake = name.replaceAll('-', '_')
+const display =
+  args.display ??
+  name
+    .split('-')
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(' ')
+const identifier = args.identifier ?? `com.jeremymax.${name}`
+if (!/^[a-zA-Z][a-zA-Z0-9-]*(\.[a-zA-Z0-9-]+)+$/.test(identifier))
+  fail(`--identifier must be reverse-DNS (got "${identifier}")`)
+const repo = args.repo ?? `itsJeremyMax/${name}`
+if (!/^[\w.-]+\/[\w.-]+$/.test(repo))
+  fail(`--repo must be owner/repo (got "${repo}")`)
+
+// ------------------------------------------------------------------- guard
+const pkgPath = join(ROOT, 'package.json')
+const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+if (pkg.name !== 'helios') {
+  console.error(
+    `error: package.json name is "${pkg.name}", not "helios" — this repo appears to be stamped out already. Refusing to run twice.`,
+  )
+  process.exit(1)
+}
+
+// ------------------------------------------------------------ replacements
+// Ordered longest/most-specific first so narrower tokens don't clobber them.
+const replacements = [
+  ['itsJeremyMax/helios', repo],
+  ['com.jeremymax.helios', identifier],
+  ['helios_lib', `${snake}_lib`],
+  ['Helios', display],
+  ['helios', name],
+]
+
+// Never rewrite these: history, lockfiles (regenerated on install), generated
+// bindings, internal planning docs, VCS internals, build output, and this
+// script itself.
+const EXCLUDED_DIRS = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'target',
+  '.superpowers',
+])
+const EXCLUDED_PATHS = new Set([
+  '.git', // a plain file (gitdir pointer) when running inside a git worktree
+  'CHANGELOG.md',
+  'pnpm-lock.yaml',
+  'src-tauri/Cargo.lock',
+  'src/bindings.ts',
+  'scripts/setup.mjs',
+  'docs/superpowers',
+])
+
+function* walk(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const abs = join(dir, entry.name)
+    const rel = relative(ROOT, abs).replaceAll('\\', '/')
+    if (EXCLUDED_PATHS.has(rel)) continue
+    if (entry.isDirectory()) {
+      if (!EXCLUDED_DIRS.has(entry.name)) yield* walk(abs)
+    } else if (entry.isFile()) {
+      yield { abs, rel }
+    }
+  }
+}
+
+let totalHits = 0
+const changed = []
+for (const { abs, rel } of walk(ROOT)) {
+  const buf = readFileSync(abs)
+  if (buf.includes(0)) continue // binary (icons, etc.)
+  const before = buf.toString('utf8')
+  let after = before
+  let hits = 0
+  for (const [token, value] of replacements) {
+    const count = after.split(token).length - 1
+    if (count > 0) {
+      hits += count
+      after = after.replaceAll(token, value)
+    }
+  }
+  if (hits > 0) {
+    writeFileSync(abs, after)
+    changed.push([rel, hits])
+    totalHits += hits
+  }
+}
+
+// ----------------------------------------------------------------- summary
+console.log(`Stamped out "${display}" (${name})`)
+console.log(`  identifier : ${identifier}`)
+console.log(`  crate lib  : ${snake}_lib`)
+console.log(`  repository : ${repo}\n`)
+console.log(
+  `Rewrote ${totalHits} occurrence(s) across ${changed.length} file(s):`,
+)
+for (const [rel, hits] of changed)
+  console.log(`  ${String(hits).padStart(3)}  ${rel}`)
+
+console.log(`
+Next steps:
+  1. Generate your own updater signing keypair (NEVER reuse the template's):
+       pnpm tauri signer generate -w ~/.tauri/${name}.key
+  2. Store the key as GitHub Actions secrets:
+       gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/${name}.key
+       gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+  3. Paste the new PUBLIC key into src-tauri/tauri.conf.json -> plugins.updater.pubkey
+  4. Reinstall deps + regenerate lockfiles/bindings:
+       pnpm install && pnpm tauri dev (once) or cargo check
+  5. Review the changes and commit:
+       git add -A && git commit -m "chore: stamp out template as ${name}"
+  6. Apply branch protection to your new repo:
+       gh api repos/${repo}/rulesets -X POST --input .github/rulesets/main.json
+`)
