@@ -49,7 +49,7 @@ pub struct SettingsPatch {
 const CURRENT_SCHEMA_VERSION_U64: u64 = CURRENT_SCHEMA_VERSION as u64;
 
 /// Salvage the known fields out of an arbitrary settings blob, defaulting
-/// anything missing or unparseable. Used both for older (v0/unknown-older)
+/// anything missing or unparsable. Used both for older (v0/unknown-older)
 /// payloads and for corrupt current-version payloads.
 fn salvage(value: &serde_json::Value) -> Settings {
     let mut s = Settings::default();
