@@ -6,7 +6,7 @@
 
 **Helios is an enterprise-grade starter template for [Tauri 2](https://tauri.app)
 desktop apps.** React 19 + TypeScript on the front end, Rust on the back end,
-and all the plumbing a real product needs already wired up and tested — not a
+and all the plumbing a real product needs already wired up and tested, not a
 hello-world window. Stamp out a new app with one command
 ([`scripts/setup.mjs`](./scripts/setup.mjs)), open it, and you have signed
 auto-updates, a release pipeline, typed IPC, crash handling, a tray, and an
@@ -18,30 +18,30 @@ time.
 
 ### Highlights
 
-- **Signed auto-updates** — GitHub-Releases updater with an in-app Settings UI
+- **Signed auto-updates**: GitHub-Releases updater with an in-app Settings UI
   (check-on-launch toggle, manual check, download → install → relaunch).
-- **Zero-touch release automation** — Conventional Commits drive
+- **Zero-touch release automation**: Conventional Commits drive
   [release-please](https://github.com/googleapis/release-please); merging its
   release PR builds and publishes signed installers for every platform.
-- **Typed IPC boundary** — Rust commands are the single source of truth;
+- **Typed IPC boundary**: Rust commands are the single source of truth;
   [tauri-specta](https://github.com/specta-rs/tauri-specta) generates
   [`src/bindings.ts`](./src/bindings.ts) so the frontend calls them fully typed,
   with no hand-written `invoke` strings.
-- **Three-layer state model** — TanStack Query for IPC data, Zustand for client
+- **Three-layer state model**: TanStack Query for IPC data, Zustand for client
   UI state, and `tauri-plugin-store` for anything that must survive a restart.
-- **Crash handling** — a Rust panic hook writes backtraces to the log, a React
+- **Crash handling**: a Rust panic hook writes backtraces to the log, a React
   error boundary renders a recoverable crash screen, and `attachConsole`
   forwards frontend console output into that same log file.
-- **System tray** — Show / Quit menu wired in Rust ([`tray.rs`](./src-tauri/src/tray.rs)).
-- **Launch at startup** — OS login-item registration driven entirely from Rust,
+- **System tray**: Show / Quit menu wired in Rust ([`tray.rs`](./src-tauri/src/tray.rs)).
+- **Launch at startup**: OS login-item registration driven entirely from Rust,
   toggled from Settings, with the OS registration as the source of truth.
-- **Theming** — system / light / dark, applied live with no restart, persisted
+- **Theming**: system / light / dark, applied live with no restart, persisted
   across runs.
-- **Single-instance + window-state** — a second launch focuses the running
+- **Single-instance + window-state**: a second launch focuses the running
   window; window geometry is saved and restored.
-- **Agent pack** — `CLAUDE.md`, three rule files, and six step-by-step skills so
+- **Agent pack**: `CLAUDE.md`, three rule files, and six step-by-step skills so
   an AI coding agent extends the codebase correctly on the first try.
-- **All-OS builds** — Windows, Linux, and macOS (Apple Silicon **and** Intel)
+- **All-OS builds**: Windows, Linux, and macOS (Apple Silicon **and** Intel)
   from one CI matrix.
 
 ---
@@ -66,7 +66,7 @@ time.
 | Backend language | [Rust](https://www.rust-lang.org) | stable (pinned in `rust-toolchain.toml`) |
 
 Fonts (Space Grotesk, Manrope, JetBrains Mono) are bundled locally via
-`@fontsource-variable` and imported in [`src/main.tsx`](./src/main.tsx) — never
+`@fontsource-variable` and imported in [`src/main.tsx`](./src/main.tsx), never
 CDN links, because the CSP is `font-src 'self'`.
 
 ---
@@ -95,7 +95,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the same list with commands.
 1. Click **Use this template** on GitHub (or
    `gh repo create <you>/<app> --template itsJeremyMax/helios`) to create your
    own copy, then clone it.
-2. **One command** turns the fresh clone into your app — it stamps out the
+2. **One command** turns the fresh clone into your app: it stamps out the
    identity, installs deps, and generates your own updater signing keypair
    (wiring the public key into `tauri.conf.json`):
 
@@ -133,7 +133,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the same list with commands.
 `bootstrap.sh` is a thin orchestrator over two reusable scripts you can also run
 on their own.
 
-**Stamp out the identity** ([`scripts/setup.mjs`](./scripts/setup.mjs)) —
+**Stamp out the identity** ([`scripts/setup.mjs`](./scripts/setup.mjs))
 rewrites the app name, display name, bundle identifier, repo slug, and Rust
 crate name across the tree:
 
@@ -143,18 +143,18 @@ node scripts/setup.mjs --name my-app --display "My App"
 
 | Flag | Required | Default |
 | --- | --- | --- |
-| `--name` | **yes** | — (must be kebab-case, e.g. `acme-notes`) |
+| `--name` | **yes** | None (must be kebab-case, e.g. `acme-notes`) |
 | `--display` | no | Title Case of `--name` |
 | `--identifier` | no | `com.jeremymax.<name>` (must be reverse-DNS) |
 | `--repo` | no | `itsJeremyMax/<name>` (must be `owner/repo`) |
 | `--author` | no | the repo owner |
 
 It **refuses to run twice** and **warns** if `--repo` or `--identifier` fell
-back to the template author's defaults — re-run with explicit values before
+back to the template author's defaults. Re-run with explicit values before
 shipping so you don't point releases or bundle IDs at someone else's namespace.
 
 **Generate the updater signing key**
-([`scripts/generate-signing-key.sh`](./scripts/generate-signing-key.sh)) — the
+([`scripts/generate-signing-key.sh`](./scripts/generate-signing-key.sh)). The
 template embeds the **original author's** updater public key. Before you cut a
 release you need your own keypair, or your users can't verify your updates (and
 you can't sign them). This script generates the key, wires its **public** half
@@ -171,7 +171,7 @@ password straight to GitHub Actions secrets:
 
 It **refuses to overwrite an existing key** without `--force`, because losing
 the key that signed your shipped releases permanently breaks updates for
-already-installed apps. The **same script rotates a key later** — re-run it with
+already-installed apps. The **same script rotates a key later**: re-run it with
 `--force` (understand that all currently-installed apps trust only the old key
 until they update once against a build signed by the previous key).
 
@@ -195,7 +195,7 @@ Every `package.json` script:
 | Script | What it does |
 | --- | --- |
 | `pnpm dev` | Vite dev server only (plain browser, **no** Tauri runtime) |
-| `pnpm tauri dev` | Full app in a native window with hot reload — use this for IPC |
+| `pnpm tauri dev` | Full app in a native window with hot reload (use this for IPC) |
 | `pnpm build` | `tsc` type-check, then build the frontend bundle to `dist/` |
 | `pnpm preview` | Serve the built frontend bundle for local preview |
 | `pnpm tauri build` | Produce native installers for the current platform |
@@ -207,8 +207,8 @@ Every `package.json` script:
 | `pnpm format` | `biome format --write .` |
 | `pnpm fmt:rust` | `cargo fmt` for `src-tauri` |
 | `pnpm check:rust` | `cargo clippy --all-targets -- -D warnings` |
-| `pnpm test:rust` | `cargo test` — also **regenerates `src/bindings.ts`** |
-| `pnpm check:security` | `cargo-deny` (bans/licenses/sources) + `typos`; guarded — skips with a hint if the tools aren't installed locally (CI always enforces them) |
+| `pnpm test:rust` | `cargo test`, also **regenerates `src/bindings.ts`** |
+| `pnpm check:security` | `cargo-deny` (bans/licenses/sources) + `typos`; guarded, so it skips with a hint if the tools aren't installed locally (CI always enforces them) |
 | `pnpm check:all` | The full local gate mirroring CI: typecheck → lint → test → `cargo fmt --check` → clippy → cargo test → `check:security` |
 
 > `pnpm test:rust` runs the `export_bindings` test, which rewrites
@@ -223,10 +223,10 @@ Every `package.json` script:
 helios/
 ├─ src/                          # React frontend
 │  ├─ main.tsx                   # entry: font imports, attachConsole, error listeners, root render
-│  ├─ bindings.ts                # GENERATED typed IPC (tauri-specta) — never hand-edit
+│  ├─ bindings.ts                # GENERATED typed IPC (tauri-specta), never hand-edit
 │  ├─ app/                       # app-level wiring
 │  │  ├─ router.tsx              # createHashRouter(routes)
-│  │  ├─ routes.tsx              # route registry — the single integration point for pages
+│  │  ├─ routes.tsx              # route registry: the single integration point for pages
 │  │  ├─ providers.tsx          # QueryClient, ThemeSync, LaunchUpdateCheck, Toaster
 │  │  ├─ error-boundary.tsx     # RootErrorBoundary + RouteError crash UI
 │  │  └─ layouts/app-shell.tsx  # sidebar nav (NAV_ITEMS) + version footer
@@ -236,7 +236,7 @@ helios/
 │  │  └─ updater/               # useUpdater() + update card UI
 │  ├─ lib/
 │  │  ├─ ipc/index.ts           # THE IPC entry point: commands, queryKeys, unwrapResult, normalizeIpcError
-│  │  ├─ storage.ts             # tauriStoreStorage — persistent Zustand adapter (never localStorage)
+│  │  ├─ storage.ts             # tauriStoreStorage: persistent Zustand adapter (never localStorage)
 │  │  ├─ tauri.ts               # isTauri() runtime guard
 │  │  └─ utils.ts               # cn() etc.
 │  ├─ shared/ui/                 # shadcn/Radix primitives (Tailwind v4 + design tokens)
@@ -286,18 +286,18 @@ Rust commands are the single source of truth for the IPC surface.
 handler **and** the generated TypeScript in
 [`src/bindings.ts`](./src/bindings.ts). A command is registered exactly once.
 
-- **Command shape** — each fallible command is `#[tauri::command] #[specta::specta]`
+- **Command shape**: each fallible command is `#[tauri::command] #[specta::specta]`
   and returns `AppResult<T>`. See [`.claude/rules/rust-backend.md`](./.claude/rules/rust-backend.md).
-- **Errors** — [`AppError`](./src-tauri/src/error.rs) serializes to a stable
+- **Errors**: [`AppError`](./src-tauri/src/error.rs) serializes to a stable
   tagged shape `{ kind, message }`, so the frontend branches on `kind` without
   depending on Rust's enum layout. TS mirrors it as `IpcError`.
-- **Frontend access** — components import `commands`, `queryKeys`,
+- **Frontend access**: components import `commands`, `queryKeys`,
   `unwrapResult`, and `normalizeIpcError` from
-  [`@/lib/ipc`](./src/lib/ipc/index.ts) — **never** `invoke` or `@/bindings`
+  [`@/lib/ipc`](./src/lib/ipc/index.ts), **never** `invoke` or `@/bindings`
   directly. Fallible commands return a tauri-specta `Result`; unwrap them with
   `unwrapResult(await commands.getSettings())`. Infallible commands (e.g.
   `commands.greet(name)`) return the value directly.
-- **Adding a command** — command fn → `#[specta::specta]` →
+- **Adding a command**: command fn → `#[specta::specta]` →
   `collect_commands![]` → regenerate bindings (`pnpm test:rust`) → frontend
   Query hook → tests. The
   [`adding-a-tauri-command`](./.claude/skills/adding-a-tauri-command/SKILL.md)
@@ -320,12 +320,12 @@ Three layers, each with a designated tool
 
 Persistent client state uses
 [`tauriStoreStorage`](./src/lib/storage.ts) (a `tauri-plugin-store` adapter
-with debounced saves) — **never `localStorage`**, which doesn't survive a
+with debounced saves), **never `localStorage`**, which doesn't survive a
 packaged app. App settings themselves persist Rust-side to `settings.json` with
 a **versioned, non-destructive migration**
 ([`commands/settings.rs`](./src-tauri/src/commands/settings.rs)): the schema
 carries a `schemaVersion`, older payloads are salvaged field-by-field on read,
-and data written by a *newer* build is never clobbered — patches merge onto the
+and data written by a *newer* build is never clobbered: patches merge onto the
 raw object so unknown future fields survive the round-trip.
 
 ### Security
@@ -340,7 +340,7 @@ raw object so unknown future fields survive the round-trip.
   entry (they're gated by `collect_commands![]`); only plugin calls
   (`plugin:x|…`) need a permission. `tauri-plugin-fs` and `tauri-plugin-autostart`
   are Rust-side only and intentionally absent here.
-- **Updater signing** — releases are signed with a minisign key; the app
+- **Updater signing**: releases are signed with a minisign key; the app
   verifies every downloaded update against the embedded public key, independent
   of any OS code signing.
 
@@ -353,7 +353,7 @@ Four nets catch failures at different layers:
   for panics on any thread.
 - A **React error boundary** ([`error-boundary.tsx`](./src/app/error-boundary.tsx))
   renders a calm, recoverable crash screen (reload / copy diagnostics / restart)
-  instead of a blank window — at both the root and per-route level.
+  instead of a blank window, at both the root and per-route level.
 - **`attachConsole`** ([`main.tsx`](./src/main.tsx)) forwards frontend console
   output into the same log file, plus `window.onerror` / `unhandledrejection`
   listeners for errors that escape React.
@@ -406,7 +406,7 @@ end-to-end owner checklist (billing, ruleset, first release, updater proof).
 | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | No | macOS code signing + notarization; when unset, macOS builds ship unsigned |
 
 > **macOS unsigned caveat:** without the `APPLE_*` secrets the macOS build is not
-> notarized, so the first manual install is Gatekeeper-blocked — **right-click →
+> notarized, so the first manual install is Gatekeeper-blocked: **right-click →
 > Open** once to run it. The updater is independent of Apple signing (it verifies
 > against the embedded minisign key), so subsequent updates need no such dance.
 
@@ -433,35 +433,35 @@ and the Settings card never double-fetch.
 ## Working with AI agents
 
 This repo ships a first-class pack for AI coding agents (Claude Code and
-compatible tools). **Start with [`CLAUDE.md`](./CLAUDE.md)** — it summarizes the
+compatible tools). **Start with [`CLAUDE.md`](./CLAUDE.md)**: it summarizes the
 stack, commands, hard rules, and architecture at a glance.
 
-**Rules** ([`.claude/rules/`](./.claude/rules)) — always-on conventions:
+**Rules** ([`.claude/rules/`](./.claude/rules)), always-on conventions:
 
-- [`capabilities.md`](./.claude/rules/capabilities.md) — least-privilege
+- [`capabilities.md`](./.claude/rules/capabilities.md): least-privilege
   permissions + CSP discipline.
-- [`frontend.md`](./.claude/rules/frontend.md) — three-layer state, IPC-only
+- [`frontend.md`](./.claude/rules/frontend.md): three-layer state, IPC-only
   through `@/lib/ipc`, feature folders, styling with tokens.
-- [`rust-backend.md`](./.claude/rules/rust-backend.md) — command shape, no
+- [`rust-backend.md`](./.claude/rules/rust-backend.md): command shape, no
   panics in commands, async rules, plugin init order.
 
-**Skills** ([`.claude/skills/`](./.claude/skills)) — step-by-step procedures:
+**Skills** ([`.claude/skills/`](./.claude/skills)), step-by-step procedures:
 
-- [`adding-a-page`](./.claude/skills/adding-a-page/SKILL.md) — new feature folder
+- [`adding-a-page`](./.claude/skills/adding-a-page/SKILL.md): new feature folder
   + route + nav + test.
-- [`adding-a-tauri-command`](./.claude/skills/adding-a-tauri-command/SKILL.md) —
+- [`adding-a-tauri-command`](./.claude/skills/adding-a-tauri-command/SKILL.md):
   a Rust command end-to-end (fn, registration, capability, bindings, hook, tests).
-- [`adding-a-tauri-plugin`](./.claude/skills/adding-a-tauri-plugin/SKILL.md) —
+- [`adding-a-tauri-plugin`](./.claude/skills/adding-a-tauri-plugin/SKILL.md):
   install and wire a Tauri plugin (crate, JS package, init, permission, CSP).
-- [`configuring-capabilities-and-permissions`](./.claude/skills/configuring-capabilities-and-permissions/SKILL.md)
-  — audit/adjust window permissions under least privilege.
-- [`debugging-the-ipc-boundary`](./.claude/skills/debugging-the-ipc-boundary/SKILL.md)
-  — diagnose failed invokes, permission denials, hanging promises, panics,
+- [`configuring-capabilities-and-permissions`](./.claude/skills/configuring-capabilities-and-permissions/SKILL.md):
+  audit/adjust window permissions under least privilege.
+- [`debugging-the-ipc-boundary`](./.claude/skills/debugging-the-ipc-boundary/SKILL.md):
+  diagnose failed invokes, permission denials, hanging promises, panics,
   missing events.
-- [`releasing-the-app`](./.claude/skills/releasing-the-app/SKILL.md) — how the
+- [`releasing-the-app`](./.claude/skills/releasing-the-app/SKILL.md): how the
   release pipeline works (read-only reference).
 
-**Automation** ([`.claude/settings.json`](./.claude/settings.json)) — a
+**Automation** ([`.claude/settings.json`](./.claude/settings.json)): a
 `PostToolUse` hook auto-formats files on save (`cargo fmt` for `.rs`, Biome for
 `.ts`/`.tsx`/`.json`/`.css`), and a permission allowlist pre-approves the safe
 project commands. Before finishing any change, run the same gate CI runs:
@@ -473,19 +473,19 @@ project commands. Before finishing any change, run the same gate CI runs:
 
 `pnpm check:all` mirrors CI locally. On every PR, four required checks run:
 
-- **`ci`** ([ci.yml](./.github/workflows/ci.yml)) — `pnpm typecheck`,
+- **`ci`** ([ci.yml](./.github/workflows/ci.yml)): `pnpm typecheck`,
   `biome check`, Vitest, `cargo fmt --check`, `cargo clippy -D warnings`,
   `cargo test`, a **bindings-staleness gate** (`git diff --exit-code
   src/bindings.ts`), and [`typos`](https://github.com/crate-ci/typos).
-- **`cargo-deny`** (same workflow) — `check bans licenses sources` is enforcing;
+- **`cargo-deny`** (same workflow): `check bans licenses sources` is enforcing;
   `check advisories` runs `continue-on-error`.
-- **`codeql`** ([codeql.yml](./.github/workflows/codeql.yml)) — CodeQL analysis
+- **`codeql`** ([codeql.yml](./.github/workflows/codeql.yml)): CodeQL analysis
   for **both** `javascript-typescript` and `rust`, on PRs, pushes, and a weekly
   schedule.
-- **`pr-title`** ([pr-title.yml](./.github/workflows/pr-title.yml)) — enforces a
+- **`pr-title`** ([pr-title.yml](./.github/workflows/pr-title.yml)): enforces a
   Conventional-Commit PR title (the title becomes the squashed commit that feeds
   release-please).
-- **`build-check-required`** — a 4-platform build matrix
+- **`build-check-required`**: a 4-platform build matrix
   (`aarch64-apple-darwin`, `x86_64-apple-darwin`, `ubuntu-22.04`,
   `windows-latest`) gated by a paths filter so doc-only PRs aren't blocked.
 
@@ -501,17 +501,17 @@ formatted on save and validated by a `lefthook` `commit-msg` hook plus the
 Short, self-contained guides for extending the template beyond its v1 desktop
 scope live in [`docs/recipes/`](./docs/recipes):
 
-- [Internationalization (i18n)](./docs/recipes/i18n.md) — shortest path to
+- [Internationalization (i18n)](./docs/recipes/i18n.md): shortest path to
   multi-language support with i18next + the OS locale.
-- [Crash reporting with Sentry](./docs/recipes/sentry.md) — layer Sentry on top
+- [Crash reporting with Sentry](./docs/recipes/sentry.md): layer Sentry on top
   of the built-in panic hook + error boundary.
-- [End-to-end tests with WebDriver](./docs/recipes/e2e-webdriver.md) — real E2E
+- [End-to-end tests with WebDriver](./docs/recipes/e2e-webdriver.md): real E2E
   via WebdriverIO alongside the Vitest unit tests.
-- [The isolation security pattern](./docs/recipes/isolation.md) — enable Tauri's
+- [The isolation security pattern](./docs/recipes/isolation.md): enable Tauri's
   isolation IPC sandbox.
-- [Deep links + launch-on-startup](./docs/recipes/deep-link-autostart.md) —
+- [Deep links + launch-on-startup](./docs/recipes/deep-link-autostart.md):
   wire `myapp://` deep links (autostart is already built in).
-- [Mobile targets (iOS / Android)](./docs/recipes/mobile.md) — stand up the
+- [Mobile targets (iOS / Android)](./docs/recipes/mobile.md): stand up the
   mobile projects; the scaffold is already `#[cfg(mobile)]`-ready.
 
 ---
