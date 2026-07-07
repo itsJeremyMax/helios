@@ -46,6 +46,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: pnpm install --frozen-lockfile
+      - name: verify built version matches the release tag
+        shell: bash
+        run: |
+          # package.json is the single source of truth for the app version.
+          # release-please cuts tags as v{version} (release-type node,
+          # include-component-in-tag false), so strip the leading `v` and
+          # assert equality — fail fast rather than ship a mislabeled release.
+          pkg_version="$(jq -r .version package.json)"
+          tag='${{ needs.release-please.outputs.tag_name }}'
+          tag_version="${tag#v}"
+          if [ "$pkg_version" != "$tag_version" ]; then
+            echo "::error::version mismatch: package.json=$pkg_version tag=$tag (expected v$pkg_version)"
+            exit 1
+          fi
+          echo "version OK: package.json=$pkg_version matches tag=$tag"
+      # tagName + releaseDraft:true attaches these artifacts to the DRAFT
+      # release that release-please already created (the tag is lazily created
+      # at publish time, so the release is found by name). This deliberately
+      # differs from a releaseId lookup, which raced with lazy-tag creation —
+      # do not "fix" this back to releaseId.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

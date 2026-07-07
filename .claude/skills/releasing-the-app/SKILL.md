@@ -23,7 +23,12 @@ or publish by hand. Version is owned by `package.json`; never hand-bump it.
 4. **`build-tauri`** matrix builds installers on macOS (aarch64 + x86_64),
    `ubuntu-22.04`, and `windows-latest` with `tauri-apps/tauri-action@v0`
    (`releaseDraft: true`), signing the update artifacts and uploading them plus
-   `latest.json` to the draft.
+   `latest.json` to the draft. It attaches by `tagName` + `releaseDraft: true`
+   (finding release-please's existing draft by name) rather than by `releaseId`,
+   because the tag is created lazily at publish time and a `releaseId` lookup
+   raced with that — don't "fix" it back to `releaseId`. Each leg first asserts
+   `package.json`'s version equals the tag (minus the leading `v`), failing fast
+   on any mismatch.
 5. **`publish-release`** runs `gh release edit <tag> --draft=false --latest`,
    flipping the release live and pointing the updater's `latest.json` endpoint
    at it atomically.
@@ -35,6 +40,12 @@ or publish by hand. Version is owned by `package.json`; never hand-bump it.
   to each updater artifact.
 - The updater endpoint (`tauri.conf.json` → `plugins.updater.endpoints`,
   `…/releases/latest/download/latest.json`) resolves to the new version.
+
+**Linux caveat:** the in-app updater can only self-update the `.AppImage`.
+`.deb`/`.rpm` installs must be updated via the system package manager — the
+updater UI shows a Linux hint saying so rather than attempting an in-place
+swap. Verify self-update end-to-end on the `.AppImage` (and on macOS/Windows);
+`.deb`/`.rpm` self-update is intentionally not supported.
 
 ## Secrets
 

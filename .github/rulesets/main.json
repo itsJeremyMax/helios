@@ -26,7 +26,8 @@
         "required_status_checks": [
           { "context": "ci" },
           { "context": "cargo-deny" },
-          { "context": "pr-title" }
+          { "context": "pr-title" },
+          { "context": "build-check" }
         ]
       }
     }

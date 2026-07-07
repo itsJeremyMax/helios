@@ -95,7 +95,11 @@ gh api repos/<owner>/<repo>/rulesets -X POST --input .github/rulesets/main.json
 ```
 
 This enforces PR-only merges, linear history, and the required status checks
-`ci`, `cargo-deny`, `pr-title`. If the POST 422s, GitHub's ruleset schema has
+`ci`, `cargo-deny`, `pr-title`, and `build-check`. (`build-check` is
+path-conditional — it only runs on `src/`, `src-tauri/`, or config changes;
+GitHub treats a non-triggered required check as skipped/neutral, so PRs that
+don't touch those paths are not blocked.) If the POST 422s, GitHub's ruleset
+schema has
 drifted — fetch the current shape with
 `gh api /repos/<owner>/<repo>/rulesets` on a repo that already has one and adapt.
 
@@ -113,7 +117,10 @@ On push to `main`, `release.yml` runs the `release-please` job. It opens a
 Merging the release PR sets `release_created=true`, which triggers:
 - **`build-tauri`** — a 4-target matrix: `aarch64-apple-darwin`,
   `x86_64-apple-darwin`, `ubuntu-22.04`, `windows-latest`. Each attaches its
-  artifacts to the **draft** release.
+  artifacts to the **draft** release. Before building, each leg runs a
+  **version-check step** that asserts `jq -r .version package.json` equals the
+  release tag with its leading `v` stripped, failing fast on any mismatch so a
+  mislabeled build never ships.
 - Expected assets: `.dmg` + `.app.tar.gz` + `.sig` (×2 macOS archs),
   `.AppImage` + `.sig`, `.deb`, `.rpm`, `.msi`/`-setup.exe` + `.sig`, and
   **`latest.json`**.
@@ -137,3 +144,22 @@ are optional and empty by default). The first manual install will be Gatekeeper-
 blocked — **right-click → Open** to run it the first time. The updater itself is
 independent of Apple signing: it validates downloads against the embedded
 minisign pubkey, so subsequent updates do not need the right-click dance.
+
+### (i) Manual GUI checks (require a human on a real desktop session)
+These are not automation blockers — they simply need a person clicking around a
+real windowing session (tray menus, live theme switches, and second-instance
+focus cannot be faithfully scraped headless). None of them are owner-*blocked*;
+they are just manual steps. Run them once on the built app and tick each off so
+none is silently dropped:
+
+- [ ] **Tray icon** — the tray icon appears; its menu **Show** reveals the
+  window and **Quit** exits the app cleanly.
+- [ ] **Live theme toggle** — changing the theme in Settings applies
+  immediately across all three modes (**system**, **light**, **dark**) with no
+  restart, and `system` follows the OS appearance when it changes.
+- [ ] **Second-instance focus** — launching a second copy focuses the existing
+  window instead of spawning a new one (single-instance handler in `lib.rs`).
+- [ ] **Window-state restore** — move/resize the window, quit, relaunch; the
+  window reopens at the saved geometry (`.window-state.json`).
+- [ ] **Autostart** — enable launch-at-startup in Settings, reboot, and confirm
+  the app launches automatically on login; disabling it stops that.
