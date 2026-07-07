@@ -27,7 +27,7 @@
           { "context": "ci" },
           { "context": "cargo-deny" },
           { "context": "pr-title" },
-          { "context": "build-check" }
+          { "context": "build-check-required" }
         ]
       }
     }

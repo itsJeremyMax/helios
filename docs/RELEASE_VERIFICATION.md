@@ -95,10 +95,23 @@ gh api repos/<owner>/<repo>/rulesets -X POST --input .github/rulesets/main.json
 ```
 
 This enforces PR-only merges, linear history, and the required status checks
-`ci`, `cargo-deny`, `pr-title`, and `build-check`. (`build-check` is
-path-conditional — it only runs on `src/`, `src-tauri/`, or config changes;
-GitHub treats a non-triggered required check as skipped/neutral, so PRs that
-don't touch those paths are not blocked.) If the POST 422s, GitHub's ruleset
+`ci`, `cargo-deny`, `pr-title`, and `build-check-required`.
+`build-check-required` is a single, non-matrix aggregator job that **always
+posts** on every PR and rolls up the four-platform `build-check` matrix
+(`aarch64-apple-darwin`, `x86_64-apple-darwin`, `ubuntu-22.04`,
+`windows-latest`). It is build-path-conditional at the *job* level, not the
+workflow level: the `build-check.yml` workflow always runs, a `dorny/paths-filter`
+gate detects whether build-relevant paths (`src/`, `src-tauri/`, `package.json`,
+`pnpm-lock.yaml`, the workflow itself) changed, and the matrix legs run only when
+they did. The aggregator passes when the matrix was skipped (nothing to build) or
+all four legs went green, and fails if any leg failed or was cancelled — so the
+required context is always satisfiable and doc-only PRs are never blocked.
+(Do **not** require the bare `build-check` context: matrix legs report per-leg
+check-runs like `build-check (macos-latest, --target aarch64-apple-darwin, …)`,
+never the bare name, so `build-check` could never be satisfied; and a
+workflow-level `paths:` filter would leave the required check stuck in
+Expected/Pending on unrelated PRs, blocking merge — GitHub only treats
+*job-level* skips as success.) If the POST 422s, GitHub's ruleset
 schema has
 drifted — fetch the current shape with
 `gh api /repos/<owner>/<repo>/rulesets` on a repo that already has one and adapt.
