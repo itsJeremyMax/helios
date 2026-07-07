@@ -94,63 +94,97 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the same list with commands.
 
 1. Click **Use this template** on GitHub (or
    `gh repo create <you>/<app> --template itsJeremyMax/helios`) to create your
-   own copy.
-2. Stamp out the template's identity — this rewrites the app name, display name,
-   bundle identifier, repo slug, and Rust crate name across the tree:
+   own copy, then clone it.
+2. **One command** turns the fresh clone into your app — it stamps out the
+   identity, installs deps, and generates your own updater signing keypair
+   (wiring the public key into `tauri.conf.json`):
 
    ```bash
-   node scripts/setup.mjs --name my-app --display "My App"
+   ./scripts/bootstrap.sh --name my-app --display "My App"
    ```
 
-   Flags (see [`scripts/setup.mjs`](./scripts/setup.mjs)):
+   `bootstrap.sh` walks you through everything: run it with no flags to be
+   prompted interactively, or pass `--yes` (with `--name`) for a fully
+   non-interactive run. Useful flags:
 
-   | Flag | Required | Default |
-   | --- | --- | --- |
-   | `--name` | **yes** | — (must be kebab-case, e.g. `acme-notes`) |
-   | `--display` | no | Title Case of `--name` |
-   | `--identifier` | no | `com.jeremymax.<name>` (must be reverse-DNS) |
-   | `--repo` | no | `itsJeremyMax/<name>` (must be `owner/repo`) |
-   | `--author` | no | the repo owner |
+   | Flag | Purpose |
+   | --- | --- |
+   | `--name <kebab>` | App name, kebab-case (required unless prompted) |
+   | `--display <name>` | Display / product name (default: Title Case of `--name`) |
+   | `--identifier <id>` | Reverse-DNS bundle id (default: `com.jeremymax.<name>`) |
+   | `--repo <owner/repo>` | GitHub slug (default: `itsJeremyMax/<name>`) |
+   | `--author <name>` | Author / crate author (default: repo owner) |
+   | `--fresh-git` | Wipe template history and start a fresh initial commit |
+   | `--skip-install` / `--skip-keygen` | Skip those steps |
+   | `--yes` | Non-interactive (requires `--name`; uses a random key password) |
 
-   The script **refuses to run twice** (it aborts if `package.json`'s name is no
-   longer `helios`) and **warns** if `--repo` or `--identifier` fell back to the
-   template author's defaults — re-run with explicit values before shipping so
-   you don't point releases or bundle IDs at someone else's namespace.
-
-3. Install dependencies and run the app in a native window:
+   The bootstrap **refuses to run twice** (it aborts if `package.json`'s name is
+   no longer `helios`). When it finishes, run the app:
 
    ```bash
-   pnpm install
    pnpm tauri dev
    ```
 
    > Use `pnpm tauri dev`, **not** `pnpm dev`. `pnpm dev` is a plain browser dev
    > server with no Tauri runtime, so IPC calls no-op there.
 
-### Creating a shippable app from this template
+### À la carte: the individual steps
 
-The template embeds the **original author's** updater public key. Before you cut
-a release, generate your own signing keypair — otherwise your users can't verify
-your updates (and you can't sign them). `setup.mjs` prints these same next-steps;
-[docs/RELEASE_VERIFICATION.md](./docs/RELEASE_VERIFICATION.md) is the full
-owner checklist.
+`bootstrap.sh` is a thin orchestrator over two reusable scripts you can also run
+on their own.
+
+**Stamp out the identity** ([`scripts/setup.mjs`](./scripts/setup.mjs)) —
+rewrites the app name, display name, bundle identifier, repo slug, and Rust
+crate name across the tree:
 
 ```bash
-# 1. Generate your own updater signing keypair (NEVER reuse the template's).
-pnpm tauri signer generate -w ~/.tauri/my-app.key
+node scripts/setup.mjs --name my-app --display "My App"
+```
 
-# 2. Store the private key + its password as GitHub Actions secrets.
-gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/my-app.key
-gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+| Flag | Required | Default |
+| --- | --- | --- |
+| `--name` | **yes** | — (must be kebab-case, e.g. `acme-notes`) |
+| `--display` | no | Title Case of `--name` |
+| `--identifier` | no | `com.jeremymax.<name>` (must be reverse-DNS) |
+| `--repo` | no | `itsJeremyMax/<name>` (must be `owner/repo`) |
+| `--author` | no | the repo owner |
 
-# 3. Paste the PUBLIC key into src-tauri/tauri.conf.json → plugins.updater.pubkey
+It **refuses to run twice** and **warns** if `--repo` or `--identifier` fell
+back to the template author's defaults — re-run with explicit values before
+shipping so you don't point releases or bundle IDs at someone else's namespace.
 
-# 4. Reinstall deps + regenerate lockfiles/bindings, then commit.
+**Generate the updater signing key**
+([`scripts/generate-signing-key.sh`](./scripts/generate-signing-key.sh)) — the
+template embeds the **original author's** updater public key. Before you cut a
+release you need your own keypair, or your users can't verify your updates (and
+you can't sign them). This script generates the key, wires its **public** half
+into `tauri.conf.json → plugins.updater.pubkey`, and can push the private key +
+password straight to GitHub Actions secrets:
+
+```bash
+# Generate + wire the pubkey (prompts for a password), and push CI secrets:
+./scripts/generate-signing-key.sh --set-secrets
+
+# Or non-interactively, with a strong random password saved beside the key:
+./scripts/generate-signing-key.sh --name my-app --random --set-secrets
+```
+
+It **refuses to overwrite an existing key** without `--force`, because losing
+the key that signed your shipped releases permanently breaks updates for
+already-installed apps. The **same script rotates a key later** — re-run it with
+`--force` (understand that all currently-installed apps trust only the old key
+until they update once against a build signed by the previous key).
+
+After either path, reinstall deps + regenerate lockfiles/bindings and, as the
+owner, apply branch protection:
+
+```bash
 pnpm install && pnpm tauri dev   # run once to regenerate
-
-# 5. (owner) Apply branch protection to your new repo.
 gh api repos/<owner>/<repo>/rulesets -X POST --input .github/rulesets/main.json
 ```
+
+[docs/RELEASE_VERIFICATION.md](./docs/RELEASE_VERIFICATION.md) is the full owner
+checklist.
 
 ---
 
@@ -227,7 +261,10 @@ helios/
 │  └─ settings.json             # format-on-save hook + permission allowlist
 ├─ docs/recipes/                  # opt-in extension guides (i18n, sentry, e2e, isolation, deep links, mobile)
 ├─ docs/RELEASE_VERIFICATION.md   # owner release checklist
-├─ scripts/setup.mjs             # template stamp-out script
+├─ scripts/                       # new-app tooling
+│  ├─ bootstrap.sh               # one-command new-app setup (stamp + install + keygen)
+│  ├─ setup.mjs                  # template stamp-out (identity rewrite)
+│  └─ generate-signing-key.sh    # generate/rotate the updater signing key
 └─ CLAUDE.md                      # top-level agent brief
 ```
 

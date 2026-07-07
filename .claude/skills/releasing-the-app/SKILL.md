@@ -56,6 +56,11 @@ swap. Verify self-update end-to-end on the `.AppImage` (and on macOS/Windows);
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | password for that key |
 | `APPLE_*` (optional) | macOS code signing / notarization — see below |
 
+The two `TAURI_SIGNING_*` secrets and the embedded `pubkey` are generated and
+wired together by `scripts/generate-signing-key.sh` (run at bootstrap, or on its
+own with `--set-secrets` to push the secrets, or with `--force` to rotate the
+key). Never hand-manage them; never reuse the template's key.
+
 ## When a matrix leg fails
 
 The release stays a DRAFT (publish only runs after all `build-tauri` legs

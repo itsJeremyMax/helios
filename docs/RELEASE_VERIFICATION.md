@@ -78,6 +78,22 @@ this branch — see "Verified locally" below.
 
 Do these in order once the two blockers above are cleared.
 
+### (0) Generate your own updater signing key
+Before any of the below, make sure this app signs updates with **your** key, not
+the template author's. If you set the app up with `./scripts/bootstrap.sh` this
+is already done. Otherwise run:
+
+```bash
+./scripts/generate-signing-key.sh --set-secrets
+```
+
+It generates the keypair, wires the **public** key into
+`tauri.conf.json → plugins.updater.pubkey`, and pushes
+`TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` to GitHub
+Actions secrets. **Back up the private key and its password** — losing them
+permanently breaks updates for already-installed apps. The same script rotates
+the key later (`--force`).
+
 ### (a) Fix GitHub Actions billing
 Restore billing on the account so workflow jobs can run. Confirm with a trivial
 push that a workflow reaches "queued → in progress" instead of dying instantly.
