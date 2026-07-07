@@ -22,9 +22,12 @@ allowlist for PLUGIN commands (`plugin:store|…`, `plugin:dialog|…`, …). Ou
 ## CSP (`tauri.conf.json`)
 
 The CSP is deliberately tight: `default-src 'self'`, `font-src 'self'`,
-`script-src 'self'`. `connect-src` only allows `ipc:` plus the GitHub hosts the
-updater needs. Any loosening (a new `connect-src` host, `img-src`, etc.) needs a
-justifying comment explaining exactly which feature requires it.
+`script-src 'self'`. `connect-src` only allows `ipc:` (plus Tauri's
+`http://ipc.localhost`) — no external hosts. The updater talks to GitHub from
+the Rust side (the `tauri-plugin-updater` HTTP client), not the WebView, so it
+needs no `connect-src` grant. Any loosening (a new `connect-src` host, a wider
+`img-src`, etc.) needs a justifying comment explaining exactly which feature
+requires it.
 
 ## After editing
 

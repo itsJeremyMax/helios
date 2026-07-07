@@ -8,8 +8,11 @@ backend, auto-updates via GitHub Releases, release-please pipeline.
 - `pnpm tauri dev` — run the desktop app. Use this (not `pnpm dev`) to exercise
   IPC; `pnpm dev` is a plain browser with no Tauri runtime.
 - `pnpm check:all` — full quality gate: typecheck, biome lint, frontend tests,
-  `cargo fmt --check`, clippy (`-D warnings`), and `cargo test`. Run before
-  every commit; CI runs the same steps.
+  `cargo fmt --check`, clippy (`-D warnings`), `cargo test`, and
+  `pnpm check:security`. Run before every commit; CI runs the same steps.
+- `pnpm check:security` — `cargo-deny` (bans/licenses/sources) + `typos`,
+  guarded so it skips with a hint when those tools aren't installed locally
+  (CI always enforces them). Called by `check:all`.
 - `pnpm test` / `pnpm test:rust` — frontend (vitest) / Rust (cargo test) tests.
   `pnpm test:rust` also regenerates `src/bindings.ts` (the `export_bindings`
   test). CI fails if the regenerated file differs from what's committed.
@@ -53,6 +56,16 @@ backend, auto-updates via GitHub Releases, release-please pipeline.
   stacks or CDN links (CSP `font-src 'self'`).
 - Commits are Conventional Commits (enforced by lefthook `commit-msg` + the
   `pr-title` CI check).
+
+## Implementation deviations from spec
+
+Intentional, recorded departures from the original design spec
+(`docs/superpowers/specs/2026-07-06-enterprise-tauri-starter-design.md`) — not
+silent drift:
+
+- **react-router resolved to v8** (spec said v7). v8 is v7's successor with a
+  compatible data-mode API; `createHashRouter` and the centralized
+  `src/app/routes.tsx` registry work unchanged. Recorded 2026-07-06.
 
 ## Skills
 

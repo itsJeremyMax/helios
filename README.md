@@ -68,7 +68,8 @@ window.
 | `pnpm fmt:rust` | `cargo fmt` for `src-tauri` |
 | `pnpm check:rust` | `cargo clippy --all-targets -- -D warnings` |
 | `pnpm test:rust` | `cargo test` — also regenerates `src/bindings.ts` |
-| `pnpm check:all` | Everything CI runs: typecheck, lint, test, rustfmt check, clippy, cargo test |
+| `pnpm check:security` | `cargo-deny` (bans/licenses/sources) + `typos`, guarded — skips with a hint if the tools aren't installed (CI enforces them) |
+| `pnpm check:all` | Everything CI runs: typecheck, lint, test, rustfmt check, clippy, cargo test, and `check:security` |
 
 ## Release flow
 
@@ -92,6 +93,12 @@ Versioning is entirely commit-message driven: `fix:` bumps patch, `feat:`
 bumps minor, a `!` or `BREAKING CHANGE:` footer bumps major. `package.json` is
 the single version source of truth; `release-please-config.json` mirrors it
 into `src-tauri/Cargo.toml` on every release.
+
+> **Linux update caveat:** the in-app updater can only self-update the
+> `.AppImage` build. Users who installed via `.deb` or `.rpm` must update
+> through their system package manager — the updater surfaces a hint to that
+> effect instead of attempting an in-place replacement. macOS and Windows
+> self-update normally.
 
 ## Secrets
 
@@ -123,6 +130,18 @@ stack, commands, and gotchas at a glance, and `.claude/skills/` encodes
 step-by-step procedures (adding a command, adding a page, wiring a plugin,
 auditing capabilities, debugging IPC, cutting a release). If you're an AI
 agent working in this codebase, start there before making changes.
+
+## Recipes
+
+Short, self-contained guides for extending the template beyond its v1 desktop
+scope live in [`docs/recipes/`](./docs/recipes):
+
+- [Crash reporting with Sentry](./docs/recipes/sentry.md)
+- [Internationalization (i18n)](./docs/recipes/i18n.md)
+- [Deep links + autostart](./docs/recipes/deep-link-autostart.md)
+- [End-to-end tests with WebDriver](./docs/recipes/e2e-webdriver.md)
+- [Isolation pattern](./docs/recipes/isolation.md)
+- [Mobile targets (iOS / Android)](./docs/recipes/mobile.md)
 
 ## License
 
