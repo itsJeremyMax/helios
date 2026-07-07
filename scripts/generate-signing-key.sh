@@ -154,15 +154,18 @@ fi
 
 # ----------------------------------------------------------- generate key
 info "Generating updater signing key for '$NAME' -> $KEY_PATH"
-# Build the pnpm invocation explicitly so the password is passed as one arg
-# (never word-split) and never appears in an echoed command line.
+# `pnpm --silent` suppresses pnpm's own "$ tauri signer generate --password …"
+# command echo, so the password never lands on the terminal. The password is
+# passed as a single argv element (never word-split).
 if [ "$FORCE" -eq 1 ]; then
-  pnpm tauri signer generate -w "$KEY_PATH" --password "$PASSWORD" --force --ci
+  pnpm --silent tauri signer generate -w "$KEY_PATH" --password "$PASSWORD" --force --ci
 else
-  pnpm tauri signer generate -w "$KEY_PATH" --password "$PASSWORD" --ci
+  pnpm --silent tauri signer generate -w "$KEY_PATH" --password "$PASSWORD" --ci
 fi
 
 [ -f "$PUB_PATH" ] || die "expected public key not produced: $PUB_PATH"
+# Tighten the private key file down to owner-only.
+chmod 600 "$KEY_PATH" 2>/dev/null || true
 
 # ------------------------------------------------ wire pubkey into config
 info "Writing public key into $CONF_PATH (plugins.updater.pubkey)"
