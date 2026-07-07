@@ -37,4 +37,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
-secrets.*
+# Intentional secret-dump filenames only — do NOT use a broad `secrets.*` glob,
+# which would also swallow legitimate source like secrets.ts / secrets.rs.
+secrets.json
+secrets.yaml
+secrets.yml
+secrets.env

@@ -43,6 +43,15 @@ Options:
 
 Password source precedence: --password, else --random, else an interactive
 hidden prompt (asked twice). The private key is NEVER printed.
+
+Note: the tauri CLI's `signer generate` only accepts the key password as a
+command-line argument (no env-var or stdin path), so for the brief lifetime of
+that one call the password is visible to other local users via `ps` — this is
+true for every mode (--password, --random, and the interactive prompt alike).
+On a shared/multi-user host, prefer --random: the ps window is unavoidable, but
+the exposed password is a locally-generated throwaway written straight to a
+0600 file, so nothing you reuse elsewhere leaks. Best of all, run this on a
+machine only you can inspect.
 EOF
 }
 
@@ -97,6 +106,13 @@ if [ -z "$NAME" ]; then
   [ -n "$NAME" ] || die "could not derive key name from package.json; pass --name"
 fi
 
+# Validate the key stem with the same kebab-case rule setup.mjs enforces, so a
+# stray space or "../" can never smuggle its way into the key file path.
+case "$NAME" in
+  *[!a-z0-9-]* | [!a-z]* | *- | *--* | "")
+    die "--name must be kebab-case: start with a lowercase letter, then lowercase letters/digits/single dashes — got \"$NAME\"" ;;
+esac
+
 if [ -z "$OUT_DIR" ]; then
   OUT_DIR="${HOME}/.tauri"
 fi
@@ -140,31 +156,51 @@ if [ "$RANDOM_PW" -eq 1 ]; then
   else
     PASSWORD="$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
   fi
+  # Write under a tight umask AND chmod explicitly: `>` truncation reuses an
+  # existing file's (possibly looser) permissions, so umask alone is not enough
+  # on the --force overwrite path.
   ( umask 077; printf '%s' "$PASSWORD" > "$PW_PATH" )
+  chmod 600 "$PW_PATH"
   info "Wrote random key password to $PW_PATH (mode 600)."
 elif [ "$PASSWORD_SET" -ne 1 ]; then
+  # No password source given: only safe if we can prompt on a real terminal.
+  # A piped/scripted invocation (no TTY) would read an empty line and silently
+  # generate a PASSWORDLESS key — refuse instead and point at --random.
+  if [ ! -t 0 ] || [ ! -t 2 ]; then
+    die "no password provided and no terminal to prompt on. Pass --random (recommended) or --password <pw> for non-interactive use."
+  fi
   # Interactive: prompt twice, hidden.
   printf 'Enter a password for the new signing key (input hidden): ' >&2
   read -r -s pw1; printf '\n' >&2
   printf 'Confirm password: ' >&2
   read -r -s pw2; printf '\n' >&2
   [ "$pw1" = "$pw2" ] || die "passwords did not match"
+  [ -n "$pw1" ] || die "empty password refused — use --random or provide a real password"
   PASSWORD="$pw1"
 fi
 
 # ----------------------------------------------------------- generate key
 info "Generating updater signing key for '$NAME' -> $KEY_PATH"
-# `pnpm --silent` suppresses pnpm's own "$ tauri signer generate --password …"
-# command echo, so the password never lands on the terminal. The password is
-# passed as a single argv element (never word-split).
+# SECURITY — password on argv: `tauri signer generate` has no env-var or stdin
+# path for the key password (verified against the installed CLI: --ci with the
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD env set silently produces a PASSWORDLESS
+# key, and the interactive prompt requires a real TTY). So the password must go
+# on the command line via --password, where it is briefly visible to other
+# local users through `ps` for the lifetime of this one call. On a shared host
+# prefer --random. `pnpm --silent` still suppresses pnpm's own command echo so
+# the password does not land in this script's output/logs.
+#
+# Generate under umask 077 so the freshly written *.key is never even briefly
+# group/world-readable before the chmod below.
 if [ "$FORCE" -eq 1 ]; then
-  pnpm --silent tauri signer generate -w "$KEY_PATH" --password "$PASSWORD" --force --ci
+  ( umask 077; pnpm --silent tauri signer generate -w "$KEY_PATH" --password "$PASSWORD" --force --ci )
 else
-  pnpm --silent tauri signer generate -w "$KEY_PATH" --password "$PASSWORD" --ci
+  ( umask 077; pnpm --silent tauri signer generate -w "$KEY_PATH" --password "$PASSWORD" --ci )
 fi
 
 [ -f "$PUB_PATH" ] || die "expected public key not produced: $PUB_PATH"
-# Tighten the private key file down to owner-only.
+# Tighten the private key file down to owner-only (belt-and-suspenders with the
+# umask above, in case a --force overwrite reused a looser existing mode).
 chmod 600 "$KEY_PATH" 2>/dev/null || true
 
 # ------------------------------------------------ wire pubkey into config
