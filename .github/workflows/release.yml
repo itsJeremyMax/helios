@@ -32,7 +32,7 @@ jobs:
     steps:
       # No ref: draft releases use lazy tag creation (tag doesn't exist until
       # publish); the triggering commit is the release target (target_commitish).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
