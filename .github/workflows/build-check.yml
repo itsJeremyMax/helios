@@ -69,9 +69,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: pnpm install --frozen-lockfile
+      # Compile/bundle validation only — this is a PR gate, not a release. The
+      # committed config sets bundle.createUpdaterArtifacts:true, which makes
+      # `tauri build` try to SIGN the updater artifacts and fail without
+      # TAURI_SIGNING_PRIVATE_KEY. We deliberately do NOT expose that secret to
+      # PR builds (fork PRs could exfiltrate it); updater signing is a
+      # release-time concern handled by release.yml. So merge an override that
+      # disables updater artifacts for the check build only. tauri-action
+      # resolves this relative --config path against projectPath (repo root).
       - uses: tauri-apps/tauri-action@v0
         with:
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --config src-tauri/tauri.build-check.conf.json
 
   # Single, non-matrix required check. It posts a check-run named exactly
   # "build-check-required" on EVERY PR (the required context can be satisfied),
