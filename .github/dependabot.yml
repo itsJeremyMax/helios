@@ -9,6 +9,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # Wait for a release to age before proposing it. Aligns with pnpm's
+    # minimum-release-age supply-chain policy (CI rejects just-published
+    # packages) and avoids churning on same-day releases.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -24,6 +29,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # Wait for a release to age before proposing it. Aligns with pnpm's
+    # minimum-release-age supply-chain policy (CI rejects just-published
+    # packages) and avoids churning on same-day releases.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -46,6 +56,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Wait for a release to age before proposing it. Aligns with pnpm's
+    # minimum-release-age supply-chain policy (CI rejects just-published
+    # packages) and avoids churning on same-day releases.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "chore"
       include: "scope"
