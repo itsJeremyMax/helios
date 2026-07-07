@@ -34,7 +34,7 @@ jobs:
       # publish); the triggering commit is the release target (target_commitish).
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: { node-version: 22, cache: pnpm }
       - uses: dtolnay/rust-toolchain@stable
         with:
