@@ -1,7 +1,5 @@
 /// <reference types="vitest/config" />
-// @ts-expect-error type error without @types/node package
 import path from 'node:path'
-// @ts-expect-error type error without @types/node package
 import process from 'node:process'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -14,7 +12,6 @@ export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      // @ts-expect-error type error without @types/node package
       '@': path.resolve(__dirname, './src'),
     },
   },
