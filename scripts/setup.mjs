@@ -148,13 +148,26 @@ for (const { abs, rel } of walk(ROOT)) {
 // stamp-out identity so the packaged app's metadata matches the new app.
 const cargoPath = join(ROOT, 'src-tauri', 'Cargo.toml')
 const cargoBefore = readFileSync(cargoPath, 'utf8')
-const cargoAfter = cargoBefore
-  .replace(/^description = ".*"$/m, `description = "${display}"`)
-  .replace(/^authors = \[.*\]$/m, `authors = ["${author}"]`)
+let cargoAfter = cargoBefore
+let cargoHits = 0
+for (const [pattern, value] of [
+  [/^description = ".*"$/m, `description = "${display}"`],
+  [/^authors = \[.*\]$/m, `authors = ["${author}"]`],
+]) {
+  const next = cargoAfter.replace(pattern, value)
+  if (next !== cargoAfter) cargoHits++
+  cargoAfter = next
+}
 if (cargoAfter !== cargoBefore) {
   writeFileSync(cargoPath, cargoAfter)
+  totalHits += cargoHits
   const rel = relative(ROOT, cargoPath).replaceAll('\\', '/')
-  if (!changed.some(([r]) => r === rel)) changed.push([rel, 0])
+  // The generic walk may already have rewritten crate-name tokens in this
+  // file; fold these identity-field replacements into that entry rather than
+  // reporting a second row (or, worse, a bogus 0-hit row) for the same file.
+  const existing = changed.find(([r]) => r === rel)
+  if (existing) existing[1] += cargoHits
+  else changed.push([rel, cargoHits])
 }
 
 // ----------------------------------------------------------------- summary
