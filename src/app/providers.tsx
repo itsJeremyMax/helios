@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { check } from '@tauri-apps/plugin-updater'
 import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { Theme } from '@/bindings'
-import { useSettings } from '@/features/settings/use-settings'
+import { useSettings } from '@/features/settings'
+import { useUpdater } from '@/features/updater'
 import { isTauri } from '@/lib/tauri'
 import { Toaster } from '@/shared/ui/sonner'
 
@@ -74,38 +74,43 @@ function AppToaster() {
 
 /**
  * Fires a single silent update check on launch when the user has opted in,
- * surfacing a toast (not a modal) if a newer version exists. Failures — most
+ * surfacing a toast (not a modal) if a newer version exists. The check runs
+ * through the shared {@link useUpdater} query, so its result is cached under
+ * `queryKeys.updateCheck`: navigating from the toast to the Settings card shows
+ * the already-known update without a redundant re-check. Failures — most
  * commonly being offline — are swallowed: a background check must never
  * interrupt startup. The manual card on the Settings page is where errors and
  * the install flow live.
  */
-function LaunchUpdateCheck() {
-  const { data } = useSettings()
-  const fired = useRef(false)
+export function LaunchUpdateCheck() {
+  const { data: settings } = useSettings()
+  const { status, version, check } = useUpdater()
+  const checked = useRef(false)
+  const toasted = useRef(false)
 
+  // Fire the shared check exactly once, only when opted in and inside Tauri.
   useEffect(() => {
-    if (fired.current) return
-    if (!data?.checkUpdatesOnLaunch || !isTauri()) return
-    fired.current = true
+    if (checked.current) return
+    if (!settings?.checkUpdatesOnLaunch || !isTauri()) return
+    checked.current = true
+    void check()
+  }, [settings, check])
 
-    void (async () => {
-      try {
-        const update = await check()
-        if (!update) return
-        toast('An update is available', {
-          description: `Version ${update.version} is ready to install.`,
-          action: {
-            label: 'View',
-            onClick: () => {
-              window.location.hash = '#/settings'
-            },
-          },
-        })
-      } catch {
-        // Offline or endpoint unreachable — stay quiet on launch.
-      }
-    })()
-  }, [data])
+  // Toast once when the shared check surfaces an available update.
+  useEffect(() => {
+    if (toasted.current) return
+    if (status !== 'available' || !version) return
+    toasted.current = true
+    toast('An update is available', {
+      description: `Version ${version} is ready to install.`,
+      action: {
+        label: 'View',
+        onClick: () => {
+          window.location.hash = '#/settings'
+        },
+      },
+    })
+  }, [status, version])
 
   return null
 }
