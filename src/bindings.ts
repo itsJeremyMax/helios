@@ -15,6 +15,12 @@ export const commands = {
 export type AppInfo = {
 	version: string,
 	platform: string,
+	/**
+	 *  Whole seconds since the app process started, read from the managed
+	 *  [`AppState`]. `u32` (not `u64`) because specta forbids exporting 64-bit
+	 *  integers to TS (JS number precision); ~136 years of uptime fits.
+	 */
+	uptimeSeconds: number,
 };
 
 /**
