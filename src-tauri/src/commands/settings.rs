@@ -101,7 +101,7 @@ pub fn migrate(value: serde_json::Value) -> (Settings, bool) {
     }
 }
 
-fn load(app: &tauri::AppHandle) -> AppResult<(Settings, bool)> {
+fn load<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<(Settings, bool)> {
     let store = app
         .store(SETTINGS_FILE)
         .map_err(|e| AppError::Store(e.to_string()))?;
@@ -112,7 +112,7 @@ fn load(app: &tauri::AppHandle) -> AppResult<(Settings, bool)> {
     Ok(result)
 }
 
-fn save(app: &tauri::AppHandle, settings: &Settings) -> AppResult<()> {
+fn save<R: tauri::Runtime>(app: &tauri::AppHandle<R>, settings: &Settings) -> AppResult<()> {
     let store = app
         .store(SETTINGS_FILE)
         .map_err(|e| AppError::Store(e.to_string()))?;
@@ -123,9 +123,63 @@ fn save(app: &tauri::AppHandle, settings: &Settings) -> AppResult<()> {
     store.save().map_err(|e| AppError::Store(e.to_string()))
 }
 
+/// Apply a partial [`SettingsPatch`] to the current on-disk `raw` value and
+/// compute both the typed [`Settings`] to return AND the exact JSON value that
+/// should be written back to the store.
+///
+/// Kept pure (no running app) so the downgrade-safety behaviour is unit
+/// testable. The subtle case this guards against: when the store was written
+/// by a NEWER build (stored `schemaVersion` > [`CURRENT_SCHEMA_VERSION`], i.e.
+/// [`migrate`] reported `persist == false`), we must NOT serialize our
+/// narrower [`Settings`] over it — that would silently drop fields this older
+/// build doesn't understand. Instead we patch only the changed keys onto the
+/// RAW stored object, so the newer build's unknown fields survive the round
+/// trip. For our-schema-or-older data it is safe to write the full typed value.
+fn apply_patch(
+    raw: Option<serde_json::Value>,
+    patch: &SettingsPatch,
+) -> AppResult<(Settings, serde_json::Value)> {
+    let (mut settings, persist_typed) = match &raw {
+        Some(v) => migrate(v.clone()),
+        None => (Settings::default(), true),
+    };
+    if let Some(t) = patch.theme {
+        settings.theme = t;
+    }
+    if let Some(c) = patch.check_updates_on_launch {
+        settings.check_updates_on_launch = c;
+    }
+
+    let to_store = if persist_typed {
+        // Our-schema-or-older (or brand new): safe to persist the full typed shape.
+        serde_json::to_value(&settings).map_err(|e| AppError::Store(e.to_string()))?
+    } else {
+        // Newer-schema data on disk: merge onto the raw object so unknown
+        // fields (and the newer schemaVersion) are preserved, not clobbered.
+        let mut obj = match raw {
+            Some(serde_json::Value::Object(m)) => m,
+            _ => serde_json::Map::new(),
+        };
+        if let Some(t) = patch.theme {
+            obj.insert(
+                "theme".to_string(),
+                serde_json::to_value(t).map_err(|e| AppError::Store(e.to_string()))?,
+            );
+        }
+        if let Some(c) = patch.check_updates_on_launch {
+            obj.insert(
+                "checkUpdatesOnLaunch".to_string(),
+                serde_json::Value::Bool(c),
+            );
+        }
+        serde_json::Value::Object(obj)
+    };
+    Ok((settings, to_store))
+}
+
 #[tauri::command]
 #[specta::specta]
-pub fn get_settings(app: tauri::AppHandle) -> AppResult<Settings> {
+pub fn get_settings<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> AppResult<Settings> {
     let (s, persist) = load(&app)?;
     if persist {
         save(&app, &s)?; // persists migration result, only when safe to do so
@@ -135,21 +189,24 @@ pub fn get_settings(app: tauri::AppHandle) -> AppResult<Settings> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn update_settings(app: tauri::AppHandle, patch: SettingsPatch) -> AppResult<Settings> {
-    let (mut s, _persist) = load(&app)?;
-    if let Some(t) = patch.theme {
-        s.theme = t;
-    }
-    if let Some(c) = patch.check_updates_on_launch {
-        s.check_updates_on_launch = c;
-    }
-    save(&app, &s)?;
-    Ok(s)
+pub fn update_settings<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    patch: SettingsPatch,
+) -> AppResult<Settings> {
+    let store = app
+        .store(SETTINGS_FILE)
+        .map_err(|e| AppError::Store(e.to_string()))?;
+    // Compute the value to persist from the RAW stored blob so that data
+    // written by a newer schema is merged, not overwritten (see `apply_patch`).
+    let (settings, to_store) = apply_patch(store.get(SETTINGS_KEY), &patch)?;
+    store.set(SETTINGS_KEY, to_store);
+    store.save().map_err(|e| AppError::Store(e.to_string()))?;
+    Ok(settings)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn reset_app_data(app: tauri::AppHandle) -> AppResult<Settings> {
+pub fn reset_app_data<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> AppResult<Settings> {
     let s = Settings::default();
     save(&app, &s)?;
     Ok(s)
@@ -215,5 +272,68 @@ mod tests {
         assert!(s.check_updates_on_launch);
         // The shape needed to be repaired, so it should be written back.
         assert!(persist);
+    }
+
+    #[test]
+    fn update_preserves_unknown_fields_from_newer_schema() {
+        // The store was written by a NEWER build: it carries a higher
+        // schemaVersion plus a field this build has never heard of. Applying a
+        // patch must NOT clobber that data.
+        let on_disk = serde_json::json!({
+            "schemaVersion": 999,
+            "theme": "light",
+            "checkUpdatesOnLaunch": true,
+            "futureOnlyField": "keep-me",
+        });
+        let patch = SettingsPatch {
+            theme: Some(Theme::Dark),
+            check_updates_on_launch: None,
+        };
+
+        let (settings, to_store) = apply_patch(Some(on_disk), &patch).unwrap();
+
+        // The returned typed settings reflect the patch for known fields.
+        assert_eq!(settings.theme, Theme::Dark);
+        // The value written back keeps the newer build's schemaVersion and its
+        // unknown field intact — the newer data is NOT destroyed.
+        assert_eq!(to_store["schemaVersion"], 999);
+        assert_eq!(to_store["futureOnlyField"], "keep-me");
+        // The patched key is applied onto the raw object...
+        assert_eq!(to_store["theme"], "dark");
+        // ...and the untouched known field is preserved as-is.
+        assert_eq!(to_store["checkUpdatesOnLaunch"], true);
+    }
+
+    #[test]
+    fn update_writes_full_typed_settings_for_current_schema() {
+        // Current-schema data: it is safe to serialize the full typed shape.
+        let on_disk = serde_json::json!({
+            "schemaVersion": CURRENT_SCHEMA_VERSION,
+            "theme": "light",
+            "checkUpdatesOnLaunch": true,
+        });
+        let patch = SettingsPatch {
+            theme: None,
+            check_updates_on_launch: Some(false),
+        };
+
+        let (settings, to_store) = apply_patch(Some(on_disk), &patch).unwrap();
+
+        assert!(!settings.check_updates_on_launch);
+        assert_eq!(to_store["schemaVersion"], CURRENT_SCHEMA_VERSION);
+        assert_eq!(to_store["checkUpdatesOnLaunch"], false);
+        assert_eq!(to_store["theme"], "light");
+    }
+
+    #[test]
+    fn update_from_empty_store_writes_defaults_plus_patch() {
+        let patch = SettingsPatch {
+            theme: Some(Theme::Dark),
+            check_updates_on_launch: None,
+        };
+        let (settings, to_store) = apply_patch(None, &patch).unwrap();
+        assert_eq!(settings.theme, Theme::Dark);
+        assert_eq!(to_store["schemaVersion"], CURRENT_SCHEMA_VERSION);
+        assert_eq!(to_store["theme"], "dark");
     }
 }
