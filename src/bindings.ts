@@ -38,6 +38,13 @@ export type Settings = {
 	schemaVersion: number,
 	theme: Theme,
 	checkUpdatesOnLaunch: boolean,
+	/**
+	 *  Whether the app registers itself to launch when the user logs in. The
+	 *  OS autostart registration is the source of truth: [`get_settings`]
+	 *  reconciles this field against the live registration on read, and
+	 *  [`update_settings`] drives the registration when this changes.
+	 */
+	launchAtStartup: boolean,
 };
 
 /**
@@ -47,6 +54,7 @@ export type Settings = {
 export type SettingsPatch = {
 	theme: Theme | null,
 	checkUpdatesOnLaunch: boolean | null,
+	launchAtStartup: boolean | null,
 };
 
 export type Theme = "system" | "light" | "dark";

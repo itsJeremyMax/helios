@@ -17,6 +17,11 @@ pub struct Settings {
     pub schema_version: u32,
     pub theme: Theme,
     pub check_updates_on_launch: bool,
+    /// Whether the app registers itself to launch when the user logs in. The
+    /// OS autostart registration is the source of truth: [`get_settings`]
+    /// reconciles this field against the live registration on read, and
+    /// [`update_settings`] drives the registration when this changes.
+    pub launch_at_startup: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
@@ -33,6 +38,7 @@ impl Default for Settings {
             schema_version: CURRENT_SCHEMA_VERSION,
             theme: Theme::System,
             check_updates_on_launch: true,
+            launch_at_startup: false,
         }
     }
 }
@@ -44,6 +50,7 @@ impl Default for Settings {
 pub struct SettingsPatch {
     pub theme: Option<Theme>,
     pub check_updates_on_launch: Option<bool>,
+    pub launch_at_startup: Option<bool>,
 }
 
 const CURRENT_SCHEMA_VERSION_U64: u64 = CURRENT_SCHEMA_VERSION as u64;
@@ -64,6 +71,12 @@ fn salvage(value: &serde_json::Value) -> Settings {
         .and_then(serde_json::Value::as_bool)
     {
         s.check_updates_on_launch = c;
+    }
+    if let Some(l) = value
+        .get("launchAtStartup")
+        .and_then(serde_json::Value::as_bool)
+    {
+        s.launch_at_startup = l;
     }
     s
 }
@@ -149,6 +162,9 @@ fn apply_patch(
     if let Some(c) = patch.check_updates_on_launch {
         settings.check_updates_on_launch = c;
     }
+    if let Some(l) = patch.launch_at_startup {
+        settings.launch_at_startup = l;
+    }
 
     let to_store = if persist_typed {
         // Our-schema-or-older (or brand new): safe to persist the full typed shape.
@@ -172,17 +188,81 @@ fn apply_patch(
                 serde_json::Value::Bool(c),
             );
         }
+        if let Some(l) = patch.launch_at_startup {
+            obj.insert("launchAtStartup".to_string(), serde_json::Value::Bool(l));
+        }
         serde_json::Value::Object(obj)
     };
     Ok((settings, to_store))
+}
+
+/// Drive the OS-level "launch at login" registration to `enabled`, keeping it
+/// in lockstep with the stored preference. The autostart plugin (and thus the
+/// managed `AutoLaunchManager`) is desktop-only, so this is a no-op elsewhere.
+///
+/// Registration can fail (permissions, sandboxing, an OS that refuses the
+/// launch agent), so this returns [`AppError::Other`] rather than panicking.
+#[cfg(desktop)]
+fn set_autostart<R: tauri::Runtime>(app: &tauri::AppHandle<R>, enabled: bool) -> AppResult<()> {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    let result = if enabled {
+        manager.enable()
+    } else {
+        manager.disable()
+    };
+    result.map_err(|e| {
+        AppError::Other(format!(
+            "failed to {} launch-at-startup: {e}",
+            if enabled { "enable" } else { "disable" }
+        ))
+    })
+}
+
+/// Reconcile `settings.launch_at_startup` against the live OS registration,
+/// which is the source of truth (an external change — e.g. the user removing
+/// the login item in System Settings — must be reflected). Returns whether the
+/// stored value changed and therefore needs persisting. Best-effort: if the
+/// registration can't be read we log and leave the stored value as-is rather
+/// than failing the whole settings read.
+#[cfg(desktop)]
+fn reconcile_autostart<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    settings: &mut Settings,
+) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    match app.autolaunch().is_enabled() {
+        Ok(enabled) => {
+            if settings.launch_at_startup != enabled {
+                settings.launch_at_startup = enabled;
+                return true;
+            }
+            false
+        }
+        Err(e) => {
+            log::warn!("could not read launch-at-startup state: {e}");
+            false
+        }
+    }
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn get_settings<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> AppResult<Settings> {
     let (s, persist) = load(&app)?;
+    // The OS registration is authoritative, so fold its live state into the
+    // returned settings (and persist if it diverged from disk).
+    #[cfg(desktop)]
+    let (s, persist) = {
+        let mut s = s;
+        let mut persist = persist;
+        if reconcile_autostart(&app, &mut s) {
+            persist = true;
+        }
+        (s, persist)
+    };
     if persist {
-        save(&app, &s)?; // persists migration result, only when safe to do so
+        save(&app, &s)?; // persists migration/reconcile result, only when safe
     }
     Ok(s)
 }
@@ -199,6 +279,13 @@ pub fn update_settings<R: tauri::Runtime>(
     // Compute the value to persist from the RAW stored blob so that data
     // written by a newer schema is merged, not overwritten (see `apply_patch`).
     let (settings, to_store) = apply_patch(store.get(SETTINGS_KEY), &patch)?;
+    // When the patch flips launch-at-startup, drive the OS registration BEFORE
+    // persisting: if it fails we surface the error and leave settings.json
+    // untouched rather than recording a preference that never took effect.
+    #[cfg(desktop)]
+    if let Some(enabled) = patch.launch_at_startup {
+        set_autostart(&app, enabled)?;
+    }
     store.set(SETTINGS_KEY, to_store);
     store.save().map_err(|e| AppError::Store(e.to_string()))?;
     Ok(settings)
@@ -208,6 +295,13 @@ pub fn update_settings<R: tauri::Runtime>(
 #[specta::specta]
 pub fn reset_app_data<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> AppResult<Settings> {
     let s = Settings::default();
+    // Defaults disable launch-at-startup, so tear down the OS registration to
+    // match. Best-effort: a failed deregistration shouldn't block the reset of
+    // every other preference.
+    #[cfg(desktop)]
+    if let Err(e) = set_autostart(&app, s.launch_at_startup) {
+        log::warn!("reset_app_data: {e}");
+    }
     save(&app, &s)?;
     Ok(s)
 }
@@ -224,7 +318,20 @@ mod tests {
         assert_eq!(s.schema_version, CURRENT_SCHEMA_VERSION);
         assert_eq!(s.theme, Theme::Dark);
         assert!(s.check_updates_on_launch);
+        // Fields absent from an older payload fall back to their defaults.
+        assert!(!s.launch_at_startup);
         // v0/unknown-older payloads are safe to upgrade in place.
+        assert!(persist);
+    }
+
+    #[test]
+    fn migrates_unversioned_value_salvaging_launch_at_startup() {
+        // A launch-at-startup preference stored by an older shape must survive
+        // the migration rather than reset to the default (false).
+        let old = serde_json::json!({ "theme": "dark", "launchAtStartup": true });
+        let (s, persist) = migrate(old);
+        assert_eq!(s.schema_version, CURRENT_SCHEMA_VERSION);
+        assert!(s.launch_at_startup);
         assert!(persist);
     }
 
@@ -288,6 +395,7 @@ mod tests {
         let patch = SettingsPatch {
             theme: Some(Theme::Dark),
             check_updates_on_launch: None,
+            launch_at_startup: None,
         };
 
         let (settings, to_store) = apply_patch(Some(on_disk), &patch).unwrap();
@@ -315,6 +423,7 @@ mod tests {
         let patch = SettingsPatch {
             theme: None,
             check_updates_on_launch: Some(false),
+            launch_at_startup: None,
         };
 
         let (settings, to_store) = apply_patch(Some(on_disk), &patch).unwrap();
@@ -330,10 +439,65 @@ mod tests {
         let patch = SettingsPatch {
             theme: Some(Theme::Dark),
             check_updates_on_launch: None,
+            launch_at_startup: None,
         };
         let (settings, to_store) = apply_patch(None, &patch).unwrap();
         assert_eq!(settings.theme, Theme::Dark);
         assert_eq!(to_store["schemaVersion"], CURRENT_SCHEMA_VERSION);
         assert_eq!(to_store["theme"], "dark");
+        // Default when unspecified.
+        assert!(!settings.launch_at_startup);
+    }
+
+    #[test]
+    fn update_applies_launch_at_startup_patch() {
+        // The settings-plumbing side of the toggle: a launchAtStartup patch is
+        // applied to both the returned typed value and the persisted blob. (The
+        // OS registration side-effect lives in `update_settings` and can't be
+        // exercised headless — see `set_autostart`.)
+        let on_disk = serde_json::json!({
+            "schemaVersion": CURRENT_SCHEMA_VERSION,
+            "theme": "light",
+            "checkUpdatesOnLaunch": true,
+            "launchAtStartup": false,
+        });
+        let patch = SettingsPatch {
+            theme: None,
+            check_updates_on_launch: None,
+            launch_at_startup: Some(true),
+        };
+
+        let (settings, to_store) = apply_patch(Some(on_disk), &patch).unwrap();
+
+        assert!(settings.launch_at_startup);
+        assert_eq!(to_store["launchAtStartup"], true);
+        // Untouched fields are preserved.
+        assert_eq!(to_store["theme"], "light");
+        assert_eq!(to_store["checkUpdatesOnLaunch"], true);
+    }
+
+    #[test]
+    fn update_preserves_launch_at_startup_under_newer_schema() {
+        // Raw-merge path: a launchAtStartup patch onto newer-schema data must
+        // preserve the unknown field and bump only the patched key.
+        let on_disk = serde_json::json!({
+            "schemaVersion": 999,
+            "theme": "light",
+            "checkUpdatesOnLaunch": true,
+            "launchAtStartup": false,
+            "futureOnlyField": "keep-me",
+        });
+        let patch = SettingsPatch {
+            theme: None,
+            check_updates_on_launch: None,
+            launch_at_startup: Some(true),
+        };
+
+        let (settings, to_store) = apply_patch(Some(on_disk), &patch).unwrap();
+
+        assert!(settings.launch_at_startup);
+        assert_eq!(to_store["launchAtStartup"], true);
+        assert_eq!(to_store["schemaVersion"], 999);
+        assert_eq!(to_store["futureOnlyField"], "keep-me");
     }
 }

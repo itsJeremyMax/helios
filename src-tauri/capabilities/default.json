@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Least-privilege capability for the main window. Audit: every permission here must map to a feature; remove any that lose their consumer. Baseline grants: opener/dialog/os :default currently have no frontend consumer — they are intentional starter permissions for apps stamped out from this template to build on. tauri-plugin-fs is registered Rust-side only and has no entry here by design (no frontend fs access is granted).",
+  "description": "Least-privilege capability for the main window. Audit: every permission here must map to a feature; remove any that lose their consumer. Baseline grants: opener/dialog/os :default currently have no frontend consumer — they are intentional starter permissions for apps stamped out from this template to build on. tauri-plugin-fs and tauri-plugin-autostart are registered Rust-side only and have no entry here by design: fs grants no frontend access, and autostart is driven entirely from Rust (commands::settings) so the webview never invokes plugin:autostart commands.",
   "windows": ["main"],
   "permissions": [
     "core:default",

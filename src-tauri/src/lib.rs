@@ -89,6 +89,16 @@ pub fn run() {
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
+            // Launch-at-startup is a desktop concept (login items / launch
+            // agents); mobile lifecycle is OS-managed. `LaunchAgent` is the
+            // sanctioned macOS mechanism; `Some(vec![])` passes no extra args on
+            // autostart. The stored preference is driven Rust-side in
+            // `commands::settings`, so no webview capability is required.
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_autostart::init(
+                tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                Some(vec![]),
+            ))?;
             Ok(())
         })
         .run(tauri::generate_context!())
