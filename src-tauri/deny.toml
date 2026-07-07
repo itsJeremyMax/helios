@@ -22,6 +22,7 @@ ignore = [
     "RUSTSEC-2025-0081", # unic-char-property, via urlpattern (tauri-utils)
     "RUSTSEC-2025-0098", # unic-ucd-version, via urlpattern (tauri-utils)
     "RUSTSEC-2025-0100", # unic-ucd-ident, via urlpattern (tauri-utils)
+    "RUSTSEC-2024-0436", # paste (unmaintained), via tauri-specta
 ]
 
 [licenses]
