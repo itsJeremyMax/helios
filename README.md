@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/itsJeremyMax/helios/actions/workflows/ci.yml/badge.svg)](https://github.com/itsJeremyMax/helios/actions/workflows/ci.yml)
 [![release](https://github.com/itsJeremyMax/helios/actions/workflows/release.yml/badge.svg)](https://github.com/itsJeremyMax/helios/actions/workflows/release.yml)
-[![license: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](#license)
 
 **Helios is an enterprise-grade starter template for [Tauri 2](https://tauri.app)
 desktop apps.** React 19 + TypeScript on the front end, Rust on the back end,
@@ -542,7 +542,7 @@ its updates.
 
 ## License
 
-Dual-licensed under [MIT](./LICENSE-MIT) **or** [Apache-2.0](./LICENSE-APACHE),
-at your option.
+Released under the [MIT License](./LICENSE-MIT). Apps you create from this
+template are yours to license however you like.
 </content>
 </invoke>
