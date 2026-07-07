@@ -35,7 +35,43 @@ are what happens when one is skipped.
 
 3. **Unit-test the pure logic** in a `#[cfg(test)]` module (keep computation out
    of the `#[tauri::command]` wrapper so it is testable without a running app —
-   see `settings::migrate`).
+   see `settings::migrate` and `settings::apply_patch`).
+
+3b. **Command-wiring test** with `tauri::test::mock_builder`. Pure unit tests
+   don't prove the command is actually registered, serializes correctly, or can
+   read managed state — drive it across the IPC boundary. Build a mock app with
+   the REAL `invoke_handler` (and any `.manage(...)`d state the command reads),
+   then invoke via `get_ipc_response`. See `app_info_command_is_wired_and_reads_state`
+   in `src-tauri/src/lib.rs` (`mod tests`) as the copy-me example:
+
+   ```rust
+   use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets, INVOKE_KEY};
+
+   let app = mock_builder()
+       .manage(super::state::AppState::new()) // only if the command reads state
+       .invoke_handler(super::specta_builder().invoke_handler())
+       .build(mock_context(noop_assets()))
+       .unwrap();
+   let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+       .build()
+       .unwrap();
+   let response = get_ipc_response(&webview, tauri::webview::InvokeRequest {
+       cmd: "app_info".into(),
+       callback: tauri::ipc::CallbackFn(0),
+       error: tauri::ipc::CallbackFn(1),
+       url: "http://tauri.localhost".parse().unwrap(),
+       body: tauri::ipc::InvokeBody::default(),
+       headers: Default::default(),
+       invoke_key: INVOKE_KEY.to_string(),
+   }).unwrap();
+   // Fallible commands come back wrapped as { status: "ok", data } (tauri-specta).
+   let value: serde_json::Value = response.deserialize().unwrap();
+   assert_eq!(value["status"], "ok");
+   ```
+
+   Requires `tauri = { version = "2", features = ["test"] }` under
+   `[dev-dependencies]` (already present). Scope test-only clippy allows the
+   same way the surrounding `mod tests` does.
 
 4. **Regenerate bindings**: `pnpm test:rust`. This runs the `export_bindings`
    test which rewrites `src/bindings.ts`. Commit the diff; never edit it by hand.
