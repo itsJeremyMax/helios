@@ -129,6 +129,14 @@ export function UpdateCard() {
 
   const line = statusLine(status, version, appInfo?.version, progress)
   const action = primaryAction(status, check, install)
+  // The in-app updater can only self-update the Linux .AppImage; .deb/.rpm
+  // installs must go through the system package manager. We can't tell the two
+  // apart at runtime (both report platform "linux"), so we only surface the
+  // hint when the updater can't proceed — a failed check or an up-to-date
+  // no-op — never over a live "available" offer that an AppImage can honor.
+  const showLinuxHint =
+    appInfo?.platform === 'linux' &&
+    (status === 'error' || status === 'upToDate')
   const ActionIcon = action.busy
     ? Loader2
     : status === 'available'
@@ -177,6 +185,14 @@ export function UpdateCard() {
             value={Math.round(progress * 100)}
             aria-label="Update download progress"
           />
+        ) : null}
+
+        {showLinuxHint ? (
+          <p className="text-xs text-muted-foreground">
+            On Linux, only the <code>.AppImage</code> self-updates. If you
+            installed via <code>.deb</code> or <code>.rpm</code>, update through
+            your system package manager.
+          </p>
         ) : null}
       </CardContent>
     </Card>

@@ -20,9 +20,9 @@ vi.mock('@tauri-apps/plugin-process', () => ({ relaunch }))
 
 import { UpdateCard } from './update-card'
 
-function renderCard() {
+function renderCard(platform = 'macos') {
   mockIPC((cmd) => {
-    if (cmd === 'app_info') return { version: '1.2.3', platform: 'macos' }
+    if (cmd === 'app_info') return { version: '1.2.3', platform }
   })
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -88,4 +88,30 @@ it('surfaces an error when the check fails offline', async () => {
   expect(
     await screen.findByRole('button', { name: /try again/i }),
   ).toBeInTheDocument()
+})
+
+it('shows the package-manager hint on Linux when the check fails', async () => {
+  check.mockRejectedValue(new Error('network error'))
+  const user = userEvent.setup()
+  renderCard('linux')
+
+  await user.click(
+    await screen.findByRole('button', { name: /check for updates/i }),
+  )
+
+  expect(await screen.findByText(/couldn't check/i)).toBeInTheDocument()
+  expect(await screen.findByText(/system package manager/i)).toBeInTheDocument()
+})
+
+it('does not show the Linux hint on macOS', async () => {
+  check.mockRejectedValue(new Error('network error'))
+  const user = userEvent.setup()
+  renderCard()
+
+  await user.click(
+    await screen.findByRole('button', { name: /check for updates/i }),
+  )
+
+  expect(await screen.findByText(/couldn't check/i)).toBeInTheDocument()
+  expect(screen.queryByText(/system package manager/i)).not.toBeInTheDocument()
 })
