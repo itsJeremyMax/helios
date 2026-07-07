@@ -200,6 +200,6 @@ $( [ "$FRESH_GIT" -eq 1 ] && printf '    - Started a fresh git history with an i
 $( [ "$SKIP_KEYGEN" -ne 1 ] && printf '       If you did not push secrets above, run: scripts/generate-signing-key.sh --set-secrets\n' )
     3. Run the app once:  pnpm tauri dev
     4. Work through the owner checklist in docs/RELEASE_VERIFICATION.md
-       (Actions billing, Renovate, branch ruleset, first release, updater proof).
+       (Actions billing, Dependabot, branch ruleset, first release, updater proof).
 ============================================================================
 EOF

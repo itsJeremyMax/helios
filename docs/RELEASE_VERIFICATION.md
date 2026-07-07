@@ -98,9 +98,19 @@ the key later (`--force`).
 Restore billing on the account so workflow jobs can run. Confirm with a trivial
 push that a workflow reaches "queued → in progress" instead of dying instantly.
 
-### (b) Install the Renovate GitHub App
-Install Renovate on the repo (`renovate.json` is already committed). Confirm the
-onboarding/Dependency Dashboard issue appears.
+### (b) Enable Dependabot (no install required)
+Dependabot is native to GitHub, so nothing needs to be installed: the committed
+`.github/dependabot.yml` drives grouped version-update PRs automatically once the
+repo is on GitHub. Additionally turn on **Dependabot security updates** (Settings
+> Code security), or enable it via `gh`:
+
+```bash
+gh api -X PATCH repos/<owner>/<repo> \
+  -f security_and_analysis[dependabot_security_updates][status]=enabled
+```
+
+Confirm the first grouped update PRs (or a security PR) open on the weekly
+schedule.
 
 ### (c) Apply the branch ruleset
 Requires a **public repo** or a **GitHub Pro/Team** plan (rulesets are not

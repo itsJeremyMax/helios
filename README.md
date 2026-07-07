@@ -494,6 +494,17 @@ enforces PR-only merges, linear history, and those required checks. Commits are
 formatted on save and validated by a `lefthook` `commit-msg` hook plus the
 `pr-title` check.
 
+Dependencies stay current via
+[Dependabot](https://docs.github.com/code-security/dependabot)
+([`.github/dependabot.yml`](./.github/dependabot.yml)), which is native to GitHub
+(no app to install). It opens weekly version-update PRs across three ecosystems
+(Cargo in `src-tauri/`, npm/pnpm at the root, and GitHub Actions), grouping
+minor and patch bumps per ecosystem into a single PR to cut noise while keeping
+majors separate. Its commit messages are Conventional-Commit compatible
+(`chore(deps): ...`), so they pass the `pr-title` and `commit-msg` gates. Enable
+"Dependabot security updates" in repo settings to also get automatic
+vulnerability-fix PRs.
+
 ---
 
 ## Recipes
