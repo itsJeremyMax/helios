@@ -1,0 +1,49 @@
+# Dependabot version-update and security-update configuration.
+# Native to GitHub: no app install required. Security updates are enabled
+# separately in repo Settings > Code security ("Dependabot security updates").
+version: 2
+updates:
+  # Rust crates (the Cargo manifest lives in src-tauri/).
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # JavaScript dependencies (pnpm is handled by the npm ecosystem).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions workflows (.github/workflows/).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
