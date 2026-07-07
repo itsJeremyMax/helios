@@ -1,6 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { useCallback, useState } from 'react'
+import { queryKeys } from '@/lib/ipc'
 import { isTauri } from '@/lib/tauri'
 
 /**
@@ -33,35 +35,59 @@ export interface Updater {
 }
 
 /**
- * Drives the `@tauri-apps/plugin-updater` flow for the UI. Every action
- * no-ops gracefully outside a Tauri runtime (browser dev, jsdom) so callers
- * never have to guard the environment themselves.
+ * The shared update-check query function. Runs a real check against the release
+ * endpoint and resolves to the pending {@link Update} (or `null` when current).
+ * No-ops to `null` outside a Tauri runtime so browser dev and jsdom stay quiet.
+ *
+ * Cached under {@link queryKeys.updateCheck} so the on-launch check and the
+ * Settings card observe the *same* result: whichever runs first, the other
+ * reads its answer without a redundant round-trip.
+ */
+export async function fetchUpdate(): Promise<Update | null> {
+  if (!isTauri()) return null
+  return (await check()) ?? null
+}
+
+/**
+ * The install half of the lifecycle is intrinsically local to the component
+ * that drives it (only the Settings card installs), so it stays in component
+ * state — unlike the check result, which is shared through React Query.
+ */
+type InstallPhase = 'idle' | 'downloading' | 'ready' | 'error'
+
+/**
+ * Drives the `@tauri-apps/plugin-updater` flow for the UI. The check result is
+ * shared cache (keyed by {@link queryKeys.updateCheck}), so every consumer —
+ * the launch check and the Settings card — agrees on whether an update is
+ * available. Every action no-ops gracefully outside a Tauri runtime (browser
+ * dev, jsdom) so callers never have to guard the environment themselves.
  */
 export function useUpdater(): Updater {
-  const [status, setStatus] = useState<UpdateStatus>('idle')
+  const [installPhase, setInstallPhase] = useState<InstallPhase>('idle')
   const [progress, setProgress] = useState(0)
-  const [update, setUpdate] = useState<Update | null>(null)
+
+  const query = useQuery({
+    queryKey: queryKeys.updateCheck,
+    queryFn: fetchUpdate,
+    // Only run when explicitly asked (launch check or a card click). Once a
+    // result lands it never goes stale on its own — the user re-checks by hand.
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+  })
+  const { refetch } = query
+  const update = query.data ?? null
 
   const checkForUpdates = useCallback(async () => {
-    if (!isTauri()) return
-    setStatus('checking')
-    try {
-      const found = await check()
-      if (found) {
-        setUpdate(found)
-        setStatus('available')
-      } else {
-        setStatus('upToDate')
-      }
-    } catch {
-      setStatus('error')
-    }
-  }, [])
+    setInstallPhase('idle')
+    await refetch()
+  }, [refetch])
 
   const install = useCallback(async () => {
     if (!update) return
     setProgress(0)
-    setStatus('downloading')
+    setInstallPhase('downloading')
     try {
       let total = 0
       let received = 0
@@ -73,20 +99,47 @@ export function useUpdater(): Updater {
           setProgress(total ? received / total : 0)
         } else if (event.event === 'Finished') {
           setProgress(1)
-          setStatus('ready')
+          setInstallPhase('ready')
         }
       })
       await relaunch()
     } catch {
-      setStatus('error')
+      setInstallPhase('error')
     }
   }, [update])
 
   return {
-    status,
+    status: deriveStatus(query, installPhase),
     progress,
     version: update?.version,
     check: checkForUpdates,
     install,
   }
+}
+
+/** The subset of the check query {@link deriveStatus} reads. */
+interface CheckState {
+  isFetching: boolean
+  isError: boolean
+  isSuccess: boolean
+  data?: Update | null
+}
+
+/**
+ * Fold the shared check query and the local install phase into one status. The
+ * install phase wins once an install is underway; otherwise the query state
+ * decides (fetching → checking, an {@link Update} → available, a resolved
+ * `null` → up to date, an error → error, nothing checked yet → idle).
+ */
+function deriveStatus(
+  { isFetching, isError, isSuccess, data }: CheckState,
+  installPhase: InstallPhase,
+): UpdateStatus {
+  if (installPhase === 'downloading') return 'downloading'
+  if (installPhase === 'ready') return 'ready'
+  if (installPhase === 'error') return 'error'
+  if (isFetching) return 'checking'
+  if (isError) return 'error'
+  if (isSuccess) return data ? 'available' : 'upToDate'
+  return 'idle'
 }
