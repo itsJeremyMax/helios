@@ -1,6 +1,7 @@
 import { Check, ChevronsUpDown, Monitor, Moon, Sun } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import type { Theme } from '@/bindings'
 import { UpdateCard } from '@/features/updater'
 import { Button } from '@/shared/ui/button'
@@ -49,6 +50,7 @@ export function SettingsPage() {
 
   const theme = settings?.theme ?? 'system'
   const checkUpdates = settings?.checkUpdatesOnLaunch ?? true
+  const launchAtStartup = settings?.launchAtStartup ?? false
   const activeTheme =
     THEME_OPTIONS.find((option) => option.value === theme) ?? THEME_OPTIONS[0]
 
@@ -105,6 +107,7 @@ export function SettingsPage() {
                     updateSettings.mutate({
                       theme: value as Theme,
                       checkUpdatesOnLaunch: null,
+                      launchAtStartup: null,
                     })
                   }
                 >
@@ -147,7 +150,51 @@ export function SettingsPage() {
                 updateSettings.mutate({
                   theme: null,
                   checkUpdatesOnLaunch: next,
+                  launchAtStartup: null,
                 })
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Startup</CardTitle>
+          <CardDescription>
+            Control what Helios does when you sign in.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <Label
+              htmlFor="launch-at-startup"
+              className="flex flex-col items-start gap-0.5"
+            >
+              <span>Launch at startup</span>
+              <span className="font-normal text-muted-foreground">
+                Open Helios automatically when you log in to your computer.
+              </span>
+            </Label>
+            <Switch
+              id="launch-at-startup"
+              checked={launchAtStartup}
+              disabled={isPending}
+              onCheckedChange={(next) =>
+                updateSettings.mutate(
+                  {
+                    theme: null,
+                    checkUpdatesOnLaunch: null,
+                    launchAtStartup: next,
+                  },
+                  {
+                    onError: () =>
+                      toast.error("Couldn't change launch-at-startup", {
+                        description:
+                          'The system login item could not be updated.',
+                      }),
+                  },
+                )
               }
             />
           </div>

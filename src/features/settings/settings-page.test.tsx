@@ -24,6 +24,9 @@ function renderSettings(initial: Settings) {
         ...(patch.checkUpdatesOnLaunch != null
           ? { checkUpdatesOnLaunch: patch.checkUpdatesOnLaunch }
           : {}),
+        ...(patch.launchAtStartup != null
+          ? { launchAtStartup: patch.launchAtStartup }
+          : {}),
       }
       return current
     }
@@ -32,6 +35,7 @@ function renderSettings(initial: Settings) {
         schemaVersion: 1,
         theme: 'system',
         checkUpdatesOnLaunch: true,
+        launchAtStartup: false,
       }
       return current
     }
@@ -53,6 +57,7 @@ it('renders the persisted theme selection', async () => {
     schemaVersion: 1,
     theme: 'dark',
     checkUpdatesOnLaunch: true,
+    launchAtStartup: false,
   })
 
   const themeControl = await screen.findByRole('button', { name: /theme/i })
@@ -65,6 +70,7 @@ it('flipping the update switch calls update_settings with the patch', async () =
     schemaVersion: 1,
     theme: 'dark',
     checkUpdatesOnLaunch: true,
+    launchAtStartup: false,
   })
 
   const toggle = await screen.findByRole('switch', {
@@ -79,4 +85,46 @@ it('flipping the update switch calls update_settings with the patch', async () =
   expect((update?.args as { patch: SettingsPatch }).patch).toMatchObject({
     checkUpdatesOnLaunch: false,
   })
+})
+
+it('reflects the persisted launch-at-startup state', async () => {
+  renderSettings({
+    schemaVersion: 1,
+    theme: 'dark',
+    checkUpdatesOnLaunch: true,
+    launchAtStartup: true,
+  })
+
+  const toggle = await screen.findByRole('switch', {
+    name: /launch at startup/i,
+  })
+  await waitFor(() => expect(toggle).toBeChecked())
+})
+
+it('flipping the launch-at-startup switch calls update_settings with the patch', async () => {
+  const user = userEvent.setup()
+  const { calls } = renderSettings({
+    schemaVersion: 1,
+    theme: 'dark',
+    checkUpdatesOnLaunch: true,
+    launchAtStartup: false,
+  })
+
+  const toggle = await screen.findByRole('switch', {
+    name: /launch at startup/i,
+  })
+  expect(toggle).not.toBeChecked()
+
+  await user.click(toggle)
+
+  const update = calls.find(
+    (c) =>
+      c.cmd === 'update_settings' &&
+      (c.args as { patch: SettingsPatch }).patch.launchAtStartup != null,
+  )
+  expect(update).toBeDefined()
+  expect((update?.args as { patch: SettingsPatch }).patch).toMatchObject({
+    launchAtStartup: true,
+  })
+  await waitFor(() => expect(toggle).toBeChecked())
 })
