@@ -77,7 +77,7 @@ jobs:
       # release-time concern handled by release.yml. So merge an override that
       # disables updater artifacts for the check build only. tauri-action
       # resolves this relative --config path against projectPath (repo root).
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         with:
           args: ${{ matrix.args }} --config src-tauri/tauri.build-check.conf.json
 
