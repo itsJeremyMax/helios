@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard"],
+  "packageRules": [
+    { "matchManagers": ["cargo"], "groupName": "rust dependencies" },
+    { "matchManagers": ["npm"], "groupName": "js dependencies" },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "pinDigests": true
+    },
+    { "matchUpdateTypes": ["minor", "patch"], "automerge": true }
+  ],
+  "lockFileMaintenance": { "enabled": true }
+}

@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm test*)",
+      "Bash(pnpm lint*)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm check:*)",
+      "Bash(pnpm tauri *)",
+      "Bash(pnpm exec biome *)",
+      "Bash(cargo build*)",
+      "Bash(cargo check*)",
+      "Bash(cargo test*)",
+      "Bash(cargo clippy*)",
+      "Bash(cargo fmt*)",
+      "Bash(cargo add *)",
+      "Bash(cargo deny *)"
+    ],
+    "deny": ["Bash(cargo publish*)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); [ -z \"$f\" ] && exit 0; case \"$f\" in *.rs) cargo fmt --manifest-path src-tauri/Cargo.toml >/dev/null 2>&1 ;; *.ts|*.tsx|*.json|*.css) pnpm exec biome check --write \"$f\" >/dev/null 2>&1 ;; esac; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

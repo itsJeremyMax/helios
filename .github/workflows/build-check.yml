@@ -1,0 +1,111 @@
+name: build-check
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  # Fast gate: decide whether build-relevant paths changed. This job ALWAYS
+  # runs (no workflow-level path filter), so the required aggregator below
+  # always posts a conclusive check even on doc-only PRs.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.decide.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            build:
+              - 'src-tauri/**'
+              - 'src/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/build-check.yml'
+      - id: decide
+        # On workflow_dispatch there is no PR base to diff against, so build
+        # unconditionally. On pull_request, defer to the paths-filter result.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FILTER_BUILD: ${{ steps.filter.outputs.build }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=${FILTER_BUILD}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.build == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+            targets: aarch64-apple-darwin
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+            targets: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: './src-tauri -> target' }
+      - if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      - uses: tauri-apps/tauri-action@v0
+        with:
+          args: ${{ matrix.args }}
+
+  # Single, non-matrix required check. It posts a check-run named exactly
+  # "build-check-required" on EVERY PR (the required context can be satisfied),
+  # and aggregates the four-platform matrix:
+  #   - paths not changed  -> build-check is skipped -> PASS (nothing to build)
+  #   - paths changed, all legs succeed -> build-check == success -> PASS
+  #   - any leg fails/cancelled -> build-check == failure/cancelled -> FAIL
+  build-check-required:
+    name: build-check-required
+    needs: [changes, build-check]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate build-check matrix result
+        env:
+          GATE_RESULT: ${{ needs.changes.result }}
+          BUILD_NEEDED: ${{ needs.changes.outputs.build }}
+          MATRIX_RESULT: ${{ needs.build-check.result }}
+        run: |
+          echo "paths gate job result:        ${GATE_RESULT}"
+          echo "build-relevant paths changed: ${BUILD_NEEDED}"
+          echo "build-check matrix result:    ${MATRIX_RESULT}"
+          # Fail closed: if the gate job did not succeed (checkout flake,
+          # paths-filter outage, runner eviction), we cannot trust that the
+          # matrix was correctly skipped, so block rather than pass green.
+          if [ "${GATE_RESULT}" != "success" ]; then
+            echo "build-check-required: FAIL (paths gate job did not succeed: ${GATE_RESULT})"
+            exit 1
+          fi
+          # A skipped matrix (no relevant paths changed) is a pass; there is
+          # nothing to build. A green matrix is a pass. Anything else fails.
+          if [ "${MATRIX_RESULT}" = "success" ] || [ "${MATRIX_RESULT}" = "skipped" ]; then
+            echo "build-check-required: PASS"
+            exit 0
+          fi
+          echo "build-check-required: FAIL (matrix result=${MATRIX_RESULT})"
+          exit 1

@@ -1,9 +1,10 @@
 [package]
 name = "helios"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Enterprise-grade Tauri desktop application"
+authors = ["Jeremy Max"]
 edition = "2021"
+license = "MIT OR Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,11 +18,30 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[dev-dependencies]
+# `test` feature enables tauri::test (mock_builder / get_ipc_response) used by
+# the command-wiring test in lib.rs.
+tauri = { version = "2", features = ["test"] }
+
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+specta-typescript = "=0.0.12"
+thiserror = "=2.0.18"
+tauri-plugin-single-instance = "2.4.2"
+tauri-plugin-window-state = "2.4.1"
+tauri-plugin-log = "2.8.0"
+log = "0.4"
+tauri-plugin-store = "2.4.3"
+tauri-plugin-dialog = "2.7.1"
+tauri-plugin-fs = "2.5.1"
+tauri-plugin-os = "2.3.2"
+tauri-plugin-process = "2.3.1"
+tauri-plugin-autostart = "2.5.1"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -31,3 +51,14 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+[lints.rust]
+unsafe_code = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-updater = "2.10.1"

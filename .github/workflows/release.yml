@@ -1,0 +1,96 @@
+name: release
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-tauri:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macos-latest, args: '--target aarch64-apple-darwin', rust_targets: aarch64-apple-darwin }
+          - { platform: macos-latest, args: '--target x86_64-apple-darwin', rust_targets: x86_64-apple-darwin }
+          - { platform: ubuntu-22.04, args: '', rust_targets: '' }
+          - { platform: windows-latest, args: '', rust_targets: '' }
+    runs-on: ${{ matrix.platform }}
+    steps:
+      # No ref: draft releases use lazy tag creation (tag doesn't exist until
+      # publish); the triggering commit is the release target (target_commitish).
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: './src-tauri -> target' }
+      - if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      - name: verify built version matches the release tag
+        shell: bash
+        run: |
+          # package.json is the single source of truth for the app version.
+          # release-please cuts tags as v{version} (release-type node,
+          # include-component-in-tag false), so strip the leading `v` and
+          # assert equality — fail fast rather than ship a mislabeled release.
+          pkg_version="$(jq -r .version package.json)"
+          tag='${{ needs.release-please.outputs.tag_name }}'
+          tag_version="${tag#v}"
+          if [ "$pkg_version" != "$tag_version" ]; then
+            echo "::error::version mismatch: package.json=$pkg_version tag=$tag (expected v$pkg_version)"
+            exit 1
+          fi
+          echo "version OK: package.json=$pkg_version matches tag=$tag"
+      # tagName + releaseDraft:true attaches these artifacts to the DRAFT
+      # release that release-please already created (the tag is lazily created
+      # at publish time, so the release is found by name). This deliberately
+      # differs from a releaseId lookup, which raced with lazy-tag creation —
+      # do not "fix" this back to releaseId.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Conditional OS signing — empty env vars = signing skipped (unsigned build):
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: ${{ needs.release-please.outputs.tag_name }}
+          releaseDraft: true
+          args: ${{ matrix.args }}
+
+  publish-release:
+    needs: [release-please, build-tauri]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: publish the draft release (flips latest.json live atomically)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit '${{ needs.release-please.outputs.tag_name }}' --draft=false --latest

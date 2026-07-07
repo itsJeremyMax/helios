@@ -1,0 +1,47 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: 'rustfmt, clippy' }
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: './src-tauri -> target' }
+      - name: system deps (webkit for cargo check)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - run: pnpm check:rust
+      - run: pnpm test:rust
+      - name: bindings must not be stale
+        run: git diff --exit-code src/bindings.ts
+      - uses: crate-ci/typos@v1.48.0
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          command: check bans licenses sources
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        continue-on-error: true
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          command: check advisories

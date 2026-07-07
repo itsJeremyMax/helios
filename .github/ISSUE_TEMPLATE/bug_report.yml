@@ -1,0 +1,45 @@
+name: Bug report
+description: Something isn't working the way it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact steps that trigger the bug.
+      placeholder: |
+        1. Open the app
+        2. Go to Settings
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS and app version
+      description: e.g. "macOS 15.1, Helios 0.4.2"
+      placeholder: macOS 15.1, Helios 0.4.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Paste relevant log output if you have it. Log file locations:
+        - macOS: `~/Library/Logs/com.jeremymax.helios`
+        - Linux: `~/.local/share/com.jeremymax.helios/logs`
+        - Windows: `%LOCALAPPDATA%\com.jeremymax.helios\logs`
+      render: shell
+    validations:
+      required: false

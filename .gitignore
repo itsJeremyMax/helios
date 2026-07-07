@@ -22,3 +22,24 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.superpowers/
+
+# --- Signing keys & secrets (NEVER commit) ---
+*.key
+*.key.pub
+*.key.password
+*.pem
+*.p12
+*.pfx
+*.keystore
+*.jks
+.tauri/
+.env
+.env.*
+!.env.example
+# Intentional secret-dump filenames only — do NOT use a broad `secrets.*` glob,
+# which would also swallow legitimate source like secrets.ts / secrets.rs.
+secrets.json
+secrets.yaml
+secrets.yml
+secrets.env
