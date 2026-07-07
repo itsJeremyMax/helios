@@ -219,31 +219,32 @@ fn set_autostart<R: tauri::Runtime>(app: &tauri::AppHandle<R>, enabled: bool) ->
     })
 }
 
-/// Reconcile `settings.launch_at_startup` against the live OS registration,
-/// which is the source of truth (an external change — e.g. the user removing
-/// the login item in System Settings — must be reflected). Returns whether the
-/// stored value changed and therefore needs persisting. Best-effort: if the
-/// registration can't be read we log and leave the stored value as-is rather
-/// than failing the whole settings read.
+/// Fold the live OS autostart registration into the loaded settings WITHOUT
+/// ever escalating the persist decision. The OS registration is the source of
+/// truth, so the returned [`Settings`] always reflects `live_autostart` (an
+/// external change — e.g. the user removing the login item in System Settings —
+/// shows up this session). `live_autostart` is `None` when the registration
+/// couldn't be read, in which case the stored value is kept.
+///
+/// Crucially, the incoming `persist` flag is passed through UNCHANGED. A
+/// reconcile must never turn a `false` into a `true`: when [`migrate`] reported
+/// `persist == false` because the on-disk blob was written by a NEWER build,
+/// writing our narrower typed [`Settings`] over it would rewrite `schemaVersion`
+/// down to ours and destroy the newer build's unknown fields. The reconciled
+/// autostart value therefore lives only in memory for newer-schema data; disk
+/// stays untouched. (For same-or-older data `persist` is already governed by
+/// `migrate`, so a needed migration write still happens and carries the
+/// reconciled value.) Kept pure so this guarantee is unit-testable.
 #[cfg(desktop)]
-fn reconcile_autostart<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    settings: &mut Settings,
-) -> bool {
-    use tauri_plugin_autostart::ManagerExt;
-    match app.autolaunch().is_enabled() {
-        Ok(enabled) => {
-            if settings.launch_at_startup != enabled {
-                settings.launch_at_startup = enabled;
-                return true;
-            }
-            false
-        }
-        Err(e) => {
-            log::warn!("could not read launch-at-startup state: {e}");
-            false
-        }
+fn reconcile(
+    mut settings: Settings,
+    persist: bool,
+    live_autostart: Option<bool>,
+) -> (Settings, bool) {
+    if let Some(enabled) = live_autostart {
+        settings.launch_at_startup = enabled;
     }
+    (settings, persist)
 }
 
 #[tauri::command]
@@ -251,18 +252,21 @@ fn reconcile_autostart<R: tauri::Runtime>(
 pub fn get_settings<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> AppResult<Settings> {
     let (s, persist) = load(&app)?;
     // The OS registration is authoritative, so fold its live state into the
-    // returned settings (and persist if it diverged from disk).
+    // returned settings. `reconcile` deliberately preserves `persist` so
+    // newer-schema data on disk is never rewritten (which would clobber unknown
+    // fields — see the downgrade guard in `apply_patch`/`migrate`).
     #[cfg(desktop)]
     let (s, persist) = {
-        let mut s = s;
-        let mut persist = persist;
-        if reconcile_autostart(&app, &mut s) {
-            persist = true;
-        }
-        (s, persist)
+        use tauri_plugin_autostart::ManagerExt;
+        let live = app
+            .autolaunch()
+            .is_enabled()
+            .map_err(|e| log::warn!("could not read launch-at-startup state: {e}"))
+            .ok();
+        reconcile(s, persist, live)
     };
     if persist {
-        save(&app, &s)?; // persists migration/reconcile result, only when safe
+        save(&app, &s)?; // persists migration result, only when safe to do so
     }
     Ok(s)
 }
@@ -499,5 +503,68 @@ mod tests {
         assert_eq!(to_store["launchAtStartup"], true);
         assert_eq!(to_store["schemaVersion"], 999);
         assert_eq!(to_store["futureOnlyField"], "keep-me");
+    }
+
+    // This mirrors the `get_settings` flow (load -> migrate -> reconcile) for
+    // the dangerous case, using the same pure `reconcile` it calls, so the
+    // downgrade guard is exercised without a running app + real OS registration.
+    #[cfg(desktop)]
+    #[test]
+    fn reconcile_never_persists_over_newer_schema() {
+        // On-disk blob written by a NEWER build: higher schemaVersion plus an
+        // unknown field. The stored launchAtStartup (false) differs from the
+        // live OS registration (true).
+        let on_disk = serde_json::json!({
+            "schemaVersion": 999,
+            "theme": "light",
+            "checkUpdatesOnLaunch": true,
+            "launchAtStartup": false,
+            "futureOnlyField": "keep-me",
+        });
+
+        // `migrate` salvages known fields but reports persist == false: this
+        // data must NOT be written back.
+        let (salvaged, persist) = migrate(on_disk.clone());
+        assert!(!persist);
+        assert!(!salvaged.launch_at_startup);
+
+        // Reconcile against a live OS state that differs from what's stored.
+        let (settings, persist_after) = reconcile(salvaged, persist, Some(true));
+
+        // The RETURNED settings reflect the live OS autostart state this
+        // session, so the UI is accurate...
+        assert!(settings.launch_at_startup);
+        // ...but persist is STILL false, so `get_settings` skips `save` and the
+        // newer build's on-disk data is left completely untouched. Its
+        // schemaVersion and unknown field survive (they are never rewritten).
+        assert!(!persist_after);
+        assert_eq!(on_disk["schemaVersion"], 999);
+        assert_eq!(on_disk["futureOnlyField"], "keep-me");
+    }
+
+    #[cfg(desktop)]
+    #[test]
+    fn reconcile_preserves_base_persist_for_safe_schema() {
+        // Same-or-older schema: `migrate` already deemed a write safe
+        // (persist == true, e.g. an upgraded v0 payload). Reconcile folds in the
+        // live OS state and leaves that decision intact, so the migration write
+        // still happens and carries the reconciled value.
+        let old = serde_json::json!({ "theme": "dark" });
+        let (salvaged, persist) = migrate(old);
+        assert!(persist);
+
+        let (settings, persist_after) = reconcile(salvaged, persist, Some(true));
+        assert!(settings.launch_at_startup);
+        assert!(persist_after);
+    }
+
+    #[cfg(desktop)]
+    #[test]
+    fn reconcile_keeps_stored_value_when_os_state_unreadable() {
+        // A `None` live state (is_enabled() failed) leaves the stored value and
+        // the persist decision untouched.
+        let (settings, persist_after) = reconcile(Settings::default(), false, None);
+        assert!(!settings.launch_at_startup);
+        assert!(!persist_after);
     }
 }
