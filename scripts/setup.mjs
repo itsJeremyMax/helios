@@ -104,6 +104,12 @@ const EXCLUDED_PATHS = new Set([
   'src-tauri/Cargo.lock',
   'src/bindings.ts',
   'scripts/setup.mjs',
+  // The bootstrap + keygen tooling scripts talk *about* the Helios template in
+  // their help text and messages — those references must stay "Helios", not be
+  // renamed to the new app. bootstrap.sh also calls this script mid-run, so
+  // rewriting it here would corrupt the file bash is still reading.
+  'scripts/bootstrap.sh',
+  'scripts/generate-signing-key.sh',
   'docs/superpowers',
 ])
 
@@ -183,17 +189,16 @@ for (const [rel, hits] of changed)
 
 console.log(`
 Next steps:
-  1. Generate your own updater signing keypair (NEVER reuse the template's):
-       pnpm tauri signer generate -w ~/.tauri/${name}.key
-  2. Store the key as GitHub Actions secrets:
-       gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/${name}.key
-       gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-  3. Paste the new PUBLIC key into src-tauri/tauri.conf.json -> plugins.updater.pubkey
-  4. Reinstall deps + regenerate lockfiles/bindings:
+  1. Generate your own updater signing keypair (NEVER reuse the template's) and
+     wire its public key into tauri.conf.json — one command does all of it:
+       ./scripts/generate-signing-key.sh --name ${name}
+     Add --set-secrets to also push the private key + password to GitHub
+     Actions. (This whole file is automated end-to-end by ./scripts/bootstrap.sh.)
+  2. Reinstall deps + regenerate lockfiles/bindings:
        pnpm install && pnpm tauri dev (once) or cargo check
-  5. Review the changes and commit:
+  3. Review the changes and commit:
        git add -A && git commit -m "chore: stamp out template as ${name}"
-  6. Apply branch protection to your new repo:
+  4. Apply branch protection to your new repo:
        gh api repos/${repo}/rulesets -X POST --input .github/rulesets/main.json
 `)
 
