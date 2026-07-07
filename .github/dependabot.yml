@@ -27,6 +27,13 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    ignore:
+      # Keep @types/node on the Node major the app actually runs (Node 22, per
+      # package.json engines / setup-node). Major bumps (e.g. 22 -> 26) type the
+      # code against a runtime we don't use, so ignore semver-major updates and
+      # let minor/patch updates track the 22.x line.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-patch:
         update-types:
